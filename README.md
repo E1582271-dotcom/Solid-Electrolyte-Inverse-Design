@@ -1,0 +1,79 @@
+# 项目三（彩蛋）：生成式逆向设计 — generate → screen → score
+
+**定位**：概念验证（concept-validation）彩蛋，展示理解 inverse-design 范式 + 能串起
+`generate → screen → validate` 闭环。计划周 W10，里程碑③一部分。
+**明确不追求合成可行性** —— 评委知道 demo 难落地，把它当主菜反而信号弱；申请材料里只写「概念验证」。
+
+在串联叙事中的位置：
+项目一(筛选) → **项目三(生成新候选)** → 项目二(高精度 MLIP-MD 验证) → 未来电化学实验闭环。
+
+## MVP（已实现，本机 CPU 端到端验证管路通）
+
+1. **生成**：HF 上 MatterGen 预训练模型，**以化学体系 Li-P-S 为条件**采样候选结构。
+2. **稳定性筛**：universal MLIP（MACE-MP-0）算 `e_above_hull`（凸包上能量）筛掉不稳定结构，
+   并报告 **S.U.N.**（Stable + Unique + Novel）—— MatterGen 自身用的标准透镜。
+3. **打分**：用**项目一的 OBELiX-CatBoost 电导率模型**给存活候选一个粗排序先验。
+4. **输出**：几个「新且相对稳定」的候选，交给项目二 MLIP-MD 验证。
+
+## 线性编号脚本 + 可复用 `src/`（沿用项目一、二约定）
+
+| 脚本 | 作用 | 跑在哪 |
+|---|---|---|
+| `src/generate.py` + `01_generate.py` | `--source mattergen` 跑官方 CLI 条件生成；`--source from-results` 读已生成的 `*_cif.zip`；`--source mp-demo` 拉真实 Li-P-S 相做**离线管路替身**（非生成输出，`--rattle` 扰动模拟未弛豫） | mattergen=GPU；其余=CPU |
+| `src/stability.py` + `02_screen_stability.py` | 参考相与候选用**同一** MLIP 弛豫 → **自洽凸包** → `e_above_hull`；`--calc mace\|chgnet`（真跑）/`lj`（CPU 管路替身，能量无意义） | GPU（lj 除外） |
+| `src/novelty.py` | StructureMatcher 候选间去重（Unique）+ 与 MP 已知相比对（Novel） | CPU |
+| `src/score.py` + `03_score_conductivity.py` | **跨项目复用项目一模型**（导入其 `featurize`/`predict` + `catboost_model.cbm`）给候选打 log₁₀σ 先验 | CPU |
+| `04_rank_candidates.py` | 合并 screen+score → `candidates_final.csv` + 两张图（stability-vs-conductivity landscape、最终 shortlist） | CPU |
+| `notebooks/01_mattergen_pipeline.ipynb` | 云端编排：阶段 A（隔离 py3.10 venv 跑 MatterGen）→ 阶段 B（MACE 筛 + 打分） | Colab T4 / Vanda |
+
+```bash
+# 本机（CPU 管路验证，全程不需 GPU）—— 证明 generate→screen→score→rank 接线通
+~/Code/AI4SSB/.venv/bin/python 01_generate.py --source mp-demo --max-demo 6 --rattle 0.1
+~/Code/AI4SSB/.venv/bin/python 02_screen_stability.py --calc lj --steps 3 --no-relax-cell
+~/Code/AI4SSB/.venv/bin/python 03_score_conductivity.py
+~/Code/AI4SSB/.venv/bin/python 04_rank_candidates.py --top 5
+
+# 云端（真跑）—— 见 notebooks/01_mattergen_pipeline.ipynb
+python 01_generate.py --source mattergen --chemsys Li-P-S --batch-size 16 --num-batches 4
+python 02_screen_stability.py --calc mace --ehull-cutoff 0.1
+python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --top 5
+```
+
+> **目录约定**：`score.py` 向上找 `../project1_screening/`（复用项目一 `catboost_model.cbm`），
+> 所以两个 project 文件夹须并排（即 `~/Code/AI4SSB/` 的布局）。云端用 zip 上传须保留此结构。
+
+## 设计决策
+
+- **双阶段隔离**：MatterGen 钉 Python 3.10 + 自有 torch/lightning 栈，与 MACE 筛选环境易冲突 →
+  生成走独立 venv 的 CLI 子进程，筛选/打分走 kernel；中间用 `--source from-results` 这条缝衔接，
+  筛选环境**不依赖 mattergen 包**。
+- **自洽 MLIP 凸包**（非混用 MP/PBE 能量）：参考相和候选都用同一 universal MLIP 弛豫后建凸包，
+  避免「MLIP 候选能量 vs PBE+U 参考能量」参考态不一致导致的系统性 `e_above_hull` 偏差 ——
+  这与 MatterGen 自身评测器一致。参考相能量按 `material_id` 缓存，重跑很快。
+- **CPU 管路替身**（`mp-demo` + `lj`）：沿用项目一 `--demo` / 项目二 Lennard-Jones 的思路，让整条
+  下游管线能在无 GPU 笔记本上开发+验证；产物明确标注「管路检查、非物理结果」。
+
+## 常见陷阱（必须披露）
+
+- **生成结构大多不稳定/不可合成** → 必须过 MLIP 稳定性筛（本项目的核心信号点）。
+- `e_above_hull` 来自**未微调** universal MLIP，是相对稳定性指标、非 DFT 级定量；自洽凸包消了参考态
+  不一致，但 MLIP 自身偏差仍在。
+- 电导率分是**粗排序先验**（项目一模型）：生成的新化学计量比 `Family='unknown'`、对称性常为 P1，
+  分数只用于排序、交项目二 MD 验证，**非定量 σ**。
+- MatterGen 原论文仅做一例合成验证 → 申请材料**不过度承诺**，定位「概念验证」。
+
+## 状态
+
+- ✅ **本机 CPU 端到端管路验证通过**（`mp-demo` 6 个真实 Li-P-S 相 + `lj` 凸包）：
+  generate → screen（`e_above_hull` + 去重 + 新颖性，96 个 MP 参考相含 Li/P/S 端点）→ score（项目一
+  CatBoost 桥接，跨项目 `src` 包冲突已隔离处理）→ rank + 2 图，全程跑通。
+  *注：`lj` 能量无物理意义、`mp-demo` 替身非生成输出，故 `novel=False` 全中（替身本就是已知相）—— 这恰证明新颖性判定正确。*
+- ⬜ **云端真跑待办**（`notebooks/01_mattergen_pipeline.ipynb`，免费 Colab T4 / Vanda 即可，算力几乎 0 元）：
+  MatterGen 真条件生成 → MACE 自洽凸包筛 → 项目一打分 → 输出真实 S.U.N. shortlist + landscape/shortlist 图。
+- ⬜ W11：把 shortlist 头部喂项目二 MLIP-MD 算真实 σ/Eₐ；画统一 pipeline 流程图。
+
+## 结果（云端真跑后回填）
+
+| 候选 | e_above_hull (eV/atom) | Stable | Unique | Novel | S.U.N. | 预测 log₁₀σ | 备注 |
+|---|---|---|---|---|---|---|---|
+| _待填_ | | | | | | | MatterGen 条件生成 |
