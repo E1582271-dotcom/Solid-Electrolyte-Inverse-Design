@@ -76,7 +76,7 @@ qsub -v BATCH=16,NBATCH=4,EHULL=0.1,TOP=5 run_p3.pbs
 ssh vanda "cd ~/AI4SSB/project3_generative && qsub -v BATCH=4,NBATCH=1 run_p3.pbs"
 
 # 监控
-qstat -u e1582271      # 我的全部作业
+qstat -u $USER         # 我的全部作业
 qstat -f <jobid>       # 单个作业详情
 qdel  <jobid>          # 取消
 

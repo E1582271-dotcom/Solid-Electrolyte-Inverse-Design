@@ -28,11 +28,14 @@
 | `notebooks/01_mattergen_pipeline.ipynb` | 云端编排：阶段 A（隔离 py3.10 venv 跑 MatterGen）→ 阶段 B（MACE 筛 + 打分） | Colab T4 / Vanda |
 
 ```bash
+# 0) 装依赖（Python 3.10–3.12；MatterGen 生成是独立 py3.10 环境，另装，见 HPC_VANDA.md）
+pip install -r requirements.txt
+
 # 本机（CPU 管路验证，全程不需 GPU）—— 证明 generate→screen→score→rank 接线通
-~/Code/AI4SSB/.venv/bin/python 01_generate.py --source mp-demo --max-demo 6 --rattle 0.1
-~/Code/AI4SSB/.venv/bin/python 02_screen_stability.py --calc lj --steps 3 --no-relax-cell
-~/Code/AI4SSB/.venv/bin/python 03_score_conductivity.py
-~/Code/AI4SSB/.venv/bin/python 04_rank_candidates.py --top 5
+python 01_generate.py --source mp-demo --max-demo 6 --rattle 0.1
+python 02_screen_stability.py --calc lj --steps 3 --no-relax-cell
+python 03_score_conductivity.py
+python 04_rank_candidates.py --top 5
 
 # 云端（GPU 生产）—— 见 notebooks/01_mattergen_pipeline.ipynb
 python 01_generate.py --source mattergen --chemsys Li-P-S --batch-size 16 --num-batches 4
@@ -40,8 +43,9 @@ python 02_screen_stability.py --calc mace --ehull-cutoff 0.1
 python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --top 5
 ```
 
-> **目录约定**：`score.py` 向上找 `../project1_screening/`（复用项目一 `catboost_model.cbm`），
-> 所以两个 project 文件夹须并排（即 `~/Code/AI4SSB/` 的布局）。云端用 zip 上传须保留此结构。
+> **自包含打分**：电导率打分用的项目一模型已**内置**在 `vendor/`（`catboost_model.cbm` +
+> 自包含的 `p1_conductivity.py`），所以本仓库 clone 即可独立跑，**无需并排 clone 项目一**。
+> 若项目一仓库恰好并排存在（monorepo 布局），`score.py` 会自动改用它——二者预测一致。
 
 ## 设计决策
 

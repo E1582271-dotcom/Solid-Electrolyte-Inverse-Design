@@ -21,6 +21,7 @@ from pymatgen.core import Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+_VENDOR = os.path.normpath(os.path.join(_HERE, "..", "vendor"))
 _P1 = os.path.normpath(os.path.join(_HERE, "..", "..", "project1_screening"))
 
 
@@ -33,8 +34,24 @@ def _load_from_path(name, path):
     return mod
 
 
-def _load_project1():
-    """Import project 1's 04_screen_mp helpers (build_feature_row / predict) + the model.
+def _load_scorer():
+    """Load the conductivity scorer + model. Prefer the vendored self-contained copy
+    (vendor/p1_conductivity.py + vendor/catboost_model.cbm) so this repo runs standalone;
+    fall back to the sibling project1_screening/ repo if the vendored files are absent."""
+    vmod = os.path.join(_VENDOR, "p1_conductivity.py")
+    vmodel = os.path.join(_VENDOR, "catboost_model.cbm")
+    if os.path.exists(vmod) and os.path.exists(vmodel):
+        screen = _load_from_path("p1_conductivity", vmod)
+        from catboost import CatBoostRegressor
+        model = CatBoostRegressor()
+        model.load_model(vmodel)
+        return screen, model
+    return _load_project1_sibling()
+
+
+def _load_project1_sibling():
+    """Fallback: import project 1's 04_screen_mp helpers (build_feature_row / predict) + the
+    model from a sibling project1_screening/ repo (monorepo / side-by-side layout).
     Returns (screen_module, CatBoostRegressor instance).
 
     project 1's ``04_screen_mp.py`` does ``from src.featurize import ...`` -- but ``src``
@@ -93,7 +110,7 @@ def score_structures(structures: list[Structure],
     Returns a DataFrame (formula, Family, spacegroup_no, pred_log10_sigma,
     pred_sigma_S_cm, label) sorted by predicted conductivity, descending.
     """
-    screen, model = _load_project1()
+    screen, model = _load_scorer()
     rows = []
     labels = labels or [f"cand_{i:03d}" for i in range(len(structures))]
     for lab, s in zip(labels, structures):
