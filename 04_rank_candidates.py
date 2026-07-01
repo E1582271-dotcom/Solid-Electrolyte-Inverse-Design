@@ -19,8 +19,10 @@ Run:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -37,11 +39,21 @@ def main():
     ap = argparse.ArgumentParser(description="Rank + plot the final candidate shortlist.")
     ap.add_argument("--top", type=int, default=5, help="size of the printed/plotted shortlist")
     ap.add_argument("--ehull-cutoff", type=float, default=0.1)
+    # passthrough run params -- only for the p3_runs.json audit log (mirrors project 2's md_runs.json)
+    ap.add_argument("--chemsys", default=None)
+    ap.add_argument("--batch-size", type=int, default=None)
+    ap.add_argument("--num-batches", type=int, default=None)
+    ap.add_argument("--guidance", type=float, default=None)
     args = ap.parse_args()
     os.makedirs(FIG, exist_ok=True)
 
     screened = pd.read_csv(os.path.join(DATA, "screened.csv"))
-    scored = pd.read_csv(os.path.join(DATA, "scored.csv"))
+    scored_path = os.path.join(DATA, "scored.csv")
+    scored = (pd.read_csv(scored_path) if os.path.exists(scored_path)
+              else pd.DataFrame(columns=["label", "pred_log10_sigma", "pred_sigma_S_cm"]))
+    for c in ["label", "pred_log10_sigma", "pred_sigma_S_cm"]:   # tolerate an empty scored.csv
+        if c not in scored.columns:
+            scored[c] = pd.Series(dtype="float64")
     df = screened.merge(scored[["label", "pred_log10_sigma", "pred_sigma_S_cm"]],
                         on="label", how="left")
     df = df.sort_values("pred_log10_sigma", ascending=False).reset_index(drop=True)
@@ -100,6 +112,28 @@ def main():
     print("These are the generate->screen->score outputs to hand to project 2 MD. "
           "Concept-validation only -- not a synthesizability claim.")
     print(f"Saved data/candidates_final.csv + figures/01_landscape.png, 02_shortlist.png")
+
+    # --- audit log (mirrors project 2's data/md_runs.json): run params + S.U.N. counts ---
+    manifest_path = os.path.join(DATA, "generated", "manifest.csv")
+    n_generated = len(pd.read_csv(manifest_path)) if os.path.exists(manifest_path) else len(df)
+    run_meta = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "params": {
+            "chemsys": args.chemsys, "batch_size": args.batch_size,
+            "num_batches": args.num_batches, "guidance": args.guidance,
+            "ehull_cutoff": args.ehull_cutoff, "top": args.top,
+        },
+        "counts": {
+            "n_generated": int(n_generated), "n_screened": int(len(df)),
+            "n_stable": int(df["stable"].sum()), "n_unique": int(df["unique"].sum()),
+            "n_novel": int(df["novel"].sum()), "n_sun": int(df["SUN"].sum()),
+            "n_scored": int(df["pred_log10_sigma"].notna().sum()),
+        },
+        "outputs": ["data/candidates_final.csv", "figures/01_landscape.png", "figures/02_shortlist.png"],
+    }
+    with open(os.path.join(DATA, "p3_runs.json"), "w") as f:
+        json.dump(run_meta, f, indent=2)
+    print("Saved data/p3_runs.json (audit log: params + S.U.N. counts).")
 
 
 if __name__ == "__main__":

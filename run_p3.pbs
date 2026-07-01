@@ -1,0 +1,45 @@
+#!/bin/bash
+# Project 3 inverse-design pipeline on Vanda (generate -> screen -> score -> rank), one GPU
+# job, two container-exec steps in the SAME image but different package trees:
+#   A) MatterGen (isolated uv venv ~/mattergen/.venv) -> Li-P-S candidates
+#   B) MACE self-consistent hull + project-1 score (~/macepkg + ~/p3pkg) -> S.U.N. shortlist
+# Personal free budget -> no -P. Analogue of project 2's run_md.pbs.
+#
+# One-time prereqs on the LOGIN node (see HPC_VANDA.md):
+#   singularity exec $IMG bash setup_mattergen.sh   # builds ~/mattergen/.venv + checkpoint
+#   singularity exec $IMG bash setup_screen.sh       # adds catboost to ~/p3pkg + MACE weights
+# Also: ~/AI4SSB/project1_screening must sit beside project3_generative (score reuses its model).
+#
+# Submit from ~/AI4SSB/project3_generative:
+#   smoke: qsub -v BATCH=4,NBATCH=1,EHULL=0.1,TOP=5 run_p3.pbs
+#   full : qsub -v BATCH=16,NBATCH=4,EHULL=0.1,TOP=5 run_p3.pbs
+#PBS -N p3_invdesign
+#PBS -l select=1:ngpus=1
+#PBS -l walltime=04:00:00
+#PBS -j oe
+
+cd "$PBS_O_WORKDIR"
+echo "[pbs] host=$(hostname) start=$(date)"
+echo "[pbs] BATCH=${BATCH:-16} NBATCH=${NBATCH:-4} CHEMSYS=${CHEMSYS:-Li-P-S} EHULL=${EHULL:-0.1} TOP=${TOP:-5}"
+
+module load singularity
+IMG=/app1/common/singularity-img/vanda/pytorch_2.5_cuda_12.4_unsloth.sif
+
+# pass params + the persistent HF cache through to the container (SINGULARITYENV_X -> X inside)
+export SINGULARITYENV_BATCH="${BATCH:-16}"
+export SINGULARITYENV_NBATCH="${NBATCH:-4}"
+export SINGULARITYENV_GUIDANCE="${GUIDANCE:-2.0}"
+export SINGULARITYENV_CHEMSYS="${CHEMSYS:-Li-P-S}"
+export SINGULARITYENV_EHULL="${EHULL:-0.1}"
+export SINGULARITYENV_TOP="${TOP:-5}"
+export SINGULARITYENV_HF_HOME="$HOME/hf_cache"
+
+# NOTE: no --nv on NUS (containers auto-expose the GPU; --nv breaks CUDA visibility)
+echo "[pbs] === stage A: MatterGen generate ==="
+if ! singularity exec "$IMG" bash gen_in_container.sh; then
+  echo "[pbs] stage A (MatterGen) FAILED -- aborting before stage B (nothing to screen)."; exit 1
+fi
+
+echo "[pbs] === stage B: MACE screen + project-1 score + rank ==="
+singularity exec "$IMG" bash screen_in_container.sh
+echo "[pbs] end=$(date)"

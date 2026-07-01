@@ -54,9 +54,17 @@ def main():
     # mp-demo knobs
     ap.add_argument("--max-demo", type=int, default=6)
     ap.add_argument("--rattle", type=float, default=0.0, help="random displacement (A) for mp-demo")
+    ap.add_argument("--require-elements", default="Li",
+                    help="drop generated structures missing any of these elements (comma-sep). "
+                         "Default 'Li': a Li-ion-conductor screen keeps only Li-bearing candidates "
+                         "(MatterGen's chemical-system conditioning also emits Li-free P-S binaries). "
+                         "Pass '' to disable.")
     args = ap.parse_args()
 
     os.makedirs(GEN_DIR, exist_ok=True)
+    for f in os.listdir(GEN_DIR):                # clear stale candidates from prior runs
+        if (f.startswith("gen_") and f.endswith(".cif")) or f == "manifest.csv":
+            os.remove(os.path.join(GEN_DIR, f))
 
     if args.source == "mattergen":
         results_path = args.results_path or os.path.join(HERE, "data", "mattergen_run")
@@ -80,6 +88,17 @@ def main():
         source = "mp-demo" + (f"+rattle{args.rattle}" if args.rattle else "")
         print(f"[generate] mp-demo fetched {len(structures)} real Li-P-S phases "
               f"(stand-in candidates, NOT generative output).")
+
+    # A Li-ion-conductor screen must keep the mobile ion: drop candidates missing required
+    # elements (default Li). MatterGen conditioned on chemical_system=Li-P-S also emits Li-free
+    # P-S binaries, which the project-1 model would otherwise rank as "conductors".
+    req = [e.strip() for e in args.require_elements.split(",") if e.strip()]
+    if req:
+        before = len(structures)
+        structures = [s for s in structures
+                      if set(req) <= {str(el) for el in s.composition.elements}]
+        print(f"[generate] require-elements {req}: kept {len(structures)}/{before} "
+              f"candidates (dropped ones missing {req}).")
 
     labels = [f"gen_{i:03d}" for i in range(len(structures))]
     paths = G.save_structures(structures, GEN_DIR, prefix="gen")

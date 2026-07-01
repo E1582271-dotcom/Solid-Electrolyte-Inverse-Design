@@ -40,8 +40,15 @@ def main():
     screened = pd.read_csv(os.path.join(DATA, "screened.csv"))
     if args.stable_only:
         screened = screened[screened["stable"]].copy()
+    out_path = os.path.join(DATA, "scored.csv")
+    keep = ["label", "formula", "Family", "spacegroup_no",
+            "pred_log10_sigma", "pred_sigma_S_cm"]
     if screened.empty:
-        print("No candidates to score (try without --stable-only)."); return
+        # still (over)write an empty scored.csv so step 4 never merges a stale one
+        pd.DataFrame(columns=keep).to_csv(out_path, index=False)
+        print("No stable candidates to score; wrote empty scored.csv "
+              "(loosen 02's --ehull-cutoff, or run 03 without --stable-only).")
+        return
 
     labels = screened["label"].tolist()
     structures = [Structure.from_file(os.path.join(RELAX_DIR, f"relaxed_{lab}.cif"))
@@ -49,10 +56,8 @@ def main():
     print(f"[score] scoring {len(structures)} relaxed candidates with the project-1 model ...")
 
     ranked = SC.score_structures(structures, labels=labels)
-    keep = ["label", "formula", "Family", "spacegroup_no",
-            "pred_log10_sigma", "pred_sigma_S_cm"]
     out = ranked[keep].copy()
-    out.to_csv(os.path.join(DATA, "scored.csv"), index=False)
+    out.to_csv(out_path, index=False)
 
     show = out.copy()
     show["pred_log10_sigma"] = show["pred_log10_sigma"].round(2)

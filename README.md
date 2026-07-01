@@ -52,6 +52,11 @@ python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --
   这与 MatterGen 自身评测器一致。参考相能量按 `material_id` 缓存，重跑很快。
 - **CPU 管路替身**（`mp-demo` + `lj`）：沿用项目一 `--demo` / 项目二 Lennard-Jones 的思路，让整条
   下游管线能在无 GPU 笔记本上开发+验证；产物明确标注「管路检查、非物理结果」。
+- **必须含迁移离子 Li**（`01_generate.py --require-elements Li`，默认开）：MatterGen 按 `chemical_system=Li-P-S`
+  条件生成时也会产出**不含锂的 P–S 二元相**，项目一模型照样给它们打分——锂导体筛选须先要求含 Li，否则
+  shortlist 头部会混进无意义的无锂相（Vanda 真跑首版正是如此，加此过滤后剔除 3/64，头部即全含锂）。
+- **可移植参考缓存**（`data/ref_structures.json`，非 pickle）：参考相以 pymatgen `Structure`（as_dict）缓存，
+  跨 pymatgen 版本可读；本机 pickle 的 MP 实体会因 HPC 端 pymatgen 版本不同而解不开（真跑撞到，已改）。
 
 ## 常见陷阱（必须披露）
 
@@ -68,12 +73,28 @@ python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --
   generate → screen（`e_above_hull` + 去重 + 新颖性，96 个 MP 参考相含 Li/P/S 端点）→ score（项目一
   CatBoost 桥接，跨项目 `src` 包冲突已隔离处理）→ rank + 2 图，全程跑通。
   *注：`lj` 能量无物理意义、`mp-demo` 替身非生成输出，故 `novel=False` 全中（替身本就是已知相）—— 这恰证明新颖性判定正确。*
-- ⬜ **云端真跑待办**（`notebooks/01_mattergen_pipeline.ipynb`，免费 Colab T4 / Vanda 即可，算力几乎 0 元）：
-  MatterGen 真条件生成 → MACE 自洽凸包筛 → 项目一打分 → 输出真实 S.U.N. shortlist + landscape/shortlist 图。
+- ✅ **云端真跑完成（NUS Vanda A40，2026-07-01）**：MatterGen 条件生成 Li-P-S（batch 16×4=64）→ Li 过滤
+  （剔除 3 个不含锂的 P–S 二元相，留 61）→ MACE-MP-0 自洽凸包筛（96 参考相）→ 项目一 CatBoost 打分 → 排序出图。
+  跑法见 `HPC_VANDA.md`（PBS + Singularity，复用项目二 `~/macepkg`，全程免费）。
 - ⬜ W11：把 shortlist 头部喂项目二 MLIP-MD 算真实 σ/Eₐ；画统一 pipeline 流程图。
 
-## 结果（云端真跑后回填）
+## 结果（NUS Vanda A40 真跑，2026-07-01）
 
-| 候选 | e_above_hull (eV/atom) | Stable | Unique | Novel | S.U.N. | 预测 log₁₀σ | 备注 |
-|---|---|---|---|---|---|---|---|
-| _待填_ | | | | | | | MatterGen 条件生成 |
+**61 生成 → 50 稳定 → 54 unique → 61 novel → 43 S.U.N.**（`ehull_cutoff=0.1 eV/atom`；完整表见
+`data/candidates_final.csv`，图见 `figures/01_landscape.png`、`02_shortlist.png`，参数/计数见 `data/p3_runs.json`）。
+
+S.U.N. shortlist 头部（全部 Stable+Unique+Novel，按项目一模型预测 log₁₀σ 降序）：
+
+| 候选 | e_above_hull (eV/atom) | 预测 log₁₀σ (S/cm) | 备注 |
+|---|---|---|---|
+| Li6PS   |  0.035 | −6.69 | |
+| Li3PS4  |  0.006 | −6.83 | β-Li3PS4 是已知快离子导体；此为生成的**新颖多形体**，几乎在凸包上 |
+| LiP5S4  |  0.080 | −6.89 | |
+| Li3PS4  |  0.036 | −6.93 | Li3PS4 的另一新颖多形体 |
+| Li4PS5  |  0.080 | −6.94 | argyrodite 邻近计量比 |
+| LiPS3   | −0.031 | −7.12 | `e_above_hull<0` → MLIP 预测的**新基态** |
+| Li8PS2  |  0.019 | −7.12 | |
+
+> 诚实披露：`e_above_hull` 来自**未微调** MACE-MP-0（相对稳定性、非 DFT 定量）；log₁₀σ 是项目一模型的
+> **粗排序先验、非定量 σ**；生成的新计量比对称性常为 P1。shortlist 交项目二 MLIP-MD 做高精度验证——
+> 定位「概念验证」，不主张可合成。

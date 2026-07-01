@@ -1,0 +1,25 @@
+{
+  "timestamp_utc": "2026-06-30T19:15:02+00:00",
+  "params": {
+    "chemsys": "Li-P-S",
+    "batch_size": 16,
+    "num_batches": 4,
+    "guidance": 2.0,
+    "ehull_cutoff": 0.1,
+    "top": 5
+  },
+  "counts": {
+    "n_generated": 61,
+    "n_screened": 61,
+    "n_stable": 50,
+    "n_unique": 54,
+    "n_novel": 61,
+    "n_sun": 43,
+    "n_scored": 50
+  },
+  "outputs": [
+    "data/candidates_final.csv",
+    "figures/01_landscape.png",
+    "figures/02_shortlist.png"
+  ]
+}

@@ -35,8 +35,10 @@ from src import novelty as NV
 DATA = os.path.join(HERE, "data")
 GEN_DIR = os.path.join(DATA, "generated")
 RELAX_DIR = os.path.join(DATA, "relaxed")
-REF_CACHE = os.path.join(DATA, "ref_entries.pkl")
-ENERGY_CACHE = os.path.join(DATA, "hull_energy_cache.json")
+REF_CACHE = os.path.join(DATA, "ref_structures.json")   # portable structure cache (see stability.py)
+# NB: the hull energy cache is per-calculator (built in main() from args.calc) so an LJ
+# plumbing cache can never feed a MACE hull -- mixing reference states would silently
+# bias e_above_hull, the very thing the self-consistent hull exists to prevent.
 
 
 def main():
@@ -54,6 +56,9 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(RELAX_DIR, exist_ok=True)
+    for f in os.listdir(RELAX_DIR):              # clear stale relaxed CIFs from prior runs
+        if f.startswith("relaxed_") and f.endswith(".cif"):
+            os.remove(os.path.join(RELAX_DIR, f))
     chemsys = args.chemsys.split("-")
 
     # candidates
@@ -66,14 +71,17 @@ def main():
 
     calc = ST.load_calculator(args.calc, device=args.device)
 
-    # reference phases -> self-consistent MLIP hull (energies cached by material_id)
+    # reference phases -> self-consistent MLIP hull. Cache FILE is per-calculator so an LJ
+    # plumbing cache can never be reused as MACE energies (entries are keyed by material_id,
+    # which is calculator-agnostic -- the filename is what keeps the calculators apart).
     import json
-    energy_cache = json.load(open(ENERGY_CACHE)) if os.path.exists(ENERGY_CACHE) else {}
+    energy_cache_path = os.path.join(DATA, f"hull_energy_cache_{args.calc}.json")
+    energy_cache = json.load(open(energy_cache_path)) if os.path.exists(energy_cache_path) else {}
     refs = ST.fetch_reference_entries(chemsys, cache_path=REF_CACHE)
     print(f"[screen] {len(refs)} MP reference phases for {args.chemsys}; building MLIP hull ...")
     hull = ST.build_mlip_hull(refs, calc, energy_cache=energy_cache,
                               fmax=args.fmax, steps=args.steps, max_refs=args.max_refs)
-    json.dump(hull["energy_cache"], open(ENERGY_CACHE, "w"))
+    json.dump(hull["energy_cache"], open(energy_cache_path, "w"))
     pd_hull = hull["pd"]
     ref_structs = NV.reference_structures_from_entries(refs)
 

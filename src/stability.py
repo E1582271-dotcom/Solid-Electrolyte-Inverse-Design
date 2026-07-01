@@ -120,19 +120,32 @@ def _find_api_key(explicit: Optional[str] = None) -> Optional[str]:
     return f(explicit)
 
 
+class _RefEntry:
+    """Lightweight stand-in for an MP ComputedStructureEntry, holding only what the MLIP hull
+    needs: structure, composition, entry_id. We cache *these* (not the raw MP entries) so the
+    reference cache is PORTABLE across pymatgen versions: Structure (de)serialisation is stable,
+    whereas pickled MP entry classes break when pymatgen module paths differ between the machine
+    that fetched them and the (often older) HPC node that consumes them. We never use the MP
+    energies anyway -- the hull is built from MLIP relaxations of these structures."""
+
+    def __init__(self, structure: Structure, entry_id: str):
+        self.structure = structure
+        self.composition = structure.composition
+        self.entry_id = entry_id
+
+
 def fetch_reference_entries(chemsys: list[str], api_key: Optional[str] = None,
                             cache_path: Optional[str] = None) -> list:
-    """All MP ComputedStructureEntries spanning ``chemsys`` (e.g. ['Li','P','S']),
-    including the elemental endpoints. Cached to ``cache_path`` (pickle) so later runs
-    are offline. These supply the *structures* we relax to build the MLIP hull.
-
-    (Pickle, not JSON: MP entries carry an ``oxidation_states`` dict keyed by Element
-    objects that the JSON encoder cannot serialise as dict keys.)"""
-    import pickle
+    """Reference phases spanning ``chemsys`` (e.g. ['Li','P','S']), incl. elemental endpoints,
+    as lightweight ``_RefEntry`` objects. Cached to ``cache_path`` as a PORTABLE JSON of
+    structures (see ``_RefEntry``) so later/offline runs need no MP access and no pymatgen
+    version match. These supply the structures we relax to build the self-consistent MLIP hull."""
+    import json
 
     if cache_path and os.path.exists(cache_path):
-        with open(cache_path, "rb") as f:
-            return pickle.load(f)
+        with open(cache_path) as f:
+            data = json.load(f)
+        return [_RefEntry(Structure.from_dict(d["structure"]), d["entry_id"]) for d in data]
     key = _find_api_key(api_key)
     if not key:
         raise RuntimeError("No MP API key for reference phases ($MP_API_KEY or key file).")
@@ -140,11 +153,15 @@ def fetch_reference_entries(chemsys: list[str], api_key: Optional[str] = None,
 
     with MPRester(key) as mpr:
         entries = mpr.get_entries_in_chemsys(chemsys, inc_structure=True)
+    refs = [_RefEntry(e.structure,
+                      str(getattr(e, "entry_id", None) or e.composition.reduced_formula))
+            for e in entries]
     if cache_path:
         os.makedirs(os.path.dirname(os.path.abspath(cache_path)), exist_ok=True)
-        with open(cache_path, "wb") as f:
-            pickle.dump(entries, f)
-    return entries
+        with open(cache_path, "w") as f:
+            json.dump([{"entry_id": r.entry_id, "structure": r.structure.as_dict()}
+                       for r in refs], f)
+    return refs
 
 
 # --------------------------------------------------------------------------- #

@@ -8,10 +8,12 @@ data/generated/
 data/relaxed/
 data/mattergen_run/
 data/ref_entries.pkl
-data/*_cache.json
+data/ref_structures.json
+data/*_cache*.json
 data/screened.csv
 data/scored.csv
 data/candidates_final.csv
+data/p3_runs.json
 figures/*.png
 
 # MLIP / generative model-weight caches downloaded at runtime
