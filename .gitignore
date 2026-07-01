@@ -15,6 +15,7 @@ data/scored.csv
 data/candidates_final.csv
 data/p3_runs.json
 figures/*.png
+figures/*.tiff
 
 # MLIP / generative model-weight caches downloaded at runtime
 *.model

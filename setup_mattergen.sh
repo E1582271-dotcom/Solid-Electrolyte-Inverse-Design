@@ -24,7 +24,7 @@ UV="$HOME/.local/bin/uv"; command -v uv >/dev/null && UV="uv"
 "$UV" pip install -e . --python .venv/bin/python
 
 echo "=== verify venv torch CUDA build vs A40 driver (12.4) ==="
-# Project-2 gotcha 2: a torch wheel built for a CUDA NEWER than the node driver (e.g. cu130 on a
+# A torch wheel built for a CUDA NEWER than the node driver (e.g. cu130 on a
 # 12.4 driver) won't run and silently falls back to CPU. The reverse is fine -- the A40's 12.4
 # driver runs any OLDER toolkit (cu118/cu121) via backward compatibility, so MatterGen's pinned
 # cu118 stack (torch + its cu118-built torch_scatter etc.) is internally consistent and OK here.

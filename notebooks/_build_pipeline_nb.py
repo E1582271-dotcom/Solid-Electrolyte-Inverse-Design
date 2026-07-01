@@ -68,7 +68,7 @@ assert os.path.isfile(os.path.join(ROOT, "project1_screening", "catboost_model.c
 os.chdir(P3)
 print("工作目录:", os.getcwd())"""),
 
-code("""# 清场：删掉 zip 里可能带上来的本机运行产物，避免 stale 缓存/CSV 污染真跑。
+code("""# 清场：删掉 zip 里可能带上来的本机运行产物，避免 stale 缓存/CSV 污染本次运行。
 # 关键是 hull_energy_cache*.json（本机是 LJ 能量，会被当 MACE 能量复用 -> 凸包系统性偏差）。
 # 保留 data/ref_entries.pkl —— MP 参考结构与 calculator 无关，复用可省掉 MP_API_KEY。
 import os, glob, shutil

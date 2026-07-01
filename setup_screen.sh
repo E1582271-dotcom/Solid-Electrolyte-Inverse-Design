@@ -18,7 +18,7 @@ python3 -m pip install --user --no-cache-dir catboost mp-api pymatgen 2>&1 | tai
 export PYTHONPATH="$HOME/macepkg/lib/python3.10/site-packages:$HOME/p3pkg/lib/python3.10/site-packages:$PYTHONPATH"
 echo "=== sanity (mace from macepkg, catboost+pymatgen resolvable; eyeball torch cu build) ==="
 # torch comes from macepkg (container's 2.5+cu124, the A40-proven build); print its CUDA build
-# so a stray cu130/cpu torch in p3pkg never sneaks in (project-2 gotcha).
+# so a stray cu130/cpu torch in p3pkg never sneaks in.
 python3 -c "import torch, mace, catboost, pymatgen; print('mace/catboost/pymatgen ok | torch', torch.__version__, 'cuda', torch.version.cuda)"
 
 echo "=== pre-download MACE-MP-0 weights (CPU init, no GPU needed) ==="

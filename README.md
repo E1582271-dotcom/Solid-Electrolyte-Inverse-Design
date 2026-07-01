@@ -20,10 +20,11 @@
 | 脚本 | 作用 | 跑在哪 |
 |---|---|---|
 | `src/generate.py` + `01_generate.py` | `--source mattergen` 跑官方 CLI 条件生成；`--source from-results` 读已生成的 `*_cif.zip`；`--source mp-demo` 拉真实 Li-P-S 相做**离线管路替身**（非生成输出，`--rattle` 扰动模拟未弛豫） | mattergen=GPU；其余=CPU |
-| `src/stability.py` + `02_screen_stability.py` | 参考相与候选用**同一** MLIP 弛豫 → **自洽凸包** → `e_above_hull`；`--calc mace\|chgnet`（真跑）/`lj`（CPU 管路替身，能量无意义） | GPU（lj 除外） |
+| `src/stability.py` + `02_screen_stability.py` | 参考相与候选用**同一** MLIP 弛豫 → **自洽凸包** → `e_above_hull`；`--calc mace\|chgnet`（真实计算）/`lj`（CPU 管路替身，能量无意义） | GPU（lj 除外） |
 | `src/novelty.py` | StructureMatcher 候选间去重（Unique）+ 与 MP 已知相比对（Novel） | CPU |
 | `src/score.py` + `03_score_conductivity.py` | **跨项目复用项目一模型**（导入其 `featurize`/`predict` + `catboost_model.cbm`）给候选打 log₁₀σ 先验 | CPU |
-| `04_rank_candidates.py` | 合并 screen+score → `candidates_final.csv` + 两张图（stability-vs-conductivity landscape、最终 shortlist） | CPU |
+| `04_rank_candidates.py` | 合并 screen+score → `candidates_final.csv` + `p3_runs.json` + 两张快查图 | CPU |
+| `figures/make_publication_figure.py` | 由 `candidates_final.csv` 出**出版级合成 figure**（landscape + shortlist 双 panel，矢量 SVG/PDF/PNG） | CPU |
 | `notebooks/01_mattergen_pipeline.ipynb` | 云端编排：阶段 A（隔离 py3.10 venv 跑 MatterGen）→ 阶段 B（MACE 筛 + 打分） | Colab T4 / Vanda |
 
 ```bash
@@ -33,7 +34,7 @@
 ~/Code/AI4SSB/.venv/bin/python 03_score_conductivity.py
 ~/Code/AI4SSB/.venv/bin/python 04_rank_candidates.py --top 5
 
-# 云端（真跑）—— 见 notebooks/01_mattergen_pipeline.ipynb
+# 云端（GPU 生产）—— 见 notebooks/01_mattergen_pipeline.ipynb
 python 01_generate.py --source mattergen --chemsys Li-P-S --batch-size 16 --num-batches 4
 python 02_screen_stability.py --calc mace --ehull-cutoff 0.1
 python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --top 5
@@ -54,9 +55,9 @@ python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --
   下游管线能在无 GPU 笔记本上开发+验证；产物明确标注「管路检查、非物理结果」。
 - **必须含迁移离子 Li**（`01_generate.py --require-elements Li`，默认开）：MatterGen 按 `chemical_system=Li-P-S`
   条件生成时也会产出**不含锂的 P–S 二元相**，项目一模型照样给它们打分——锂导体筛选须先要求含 Li，否则
-  shortlist 头部会混进无意义的无锂相（Vanda 真跑首版正是如此，加此过滤后剔除 3/64，头部即全含锂）。
+  shortlist 头部会混进无意义的无锂相；默认开启此过滤（本次运行剔除 3 个无锂相，留 61）。
 - **可移植参考缓存**（`data/ref_structures.json`，非 pickle）：参考相以 pymatgen `Structure`（as_dict）缓存，
-  跨 pymatgen 版本可读；本机 pickle 的 MP 实体会因 HPC 端 pymatgen 版本不同而解不开（真跑撞到，已改）。
+  跨 pymatgen 版本可读；直接 pickle 的 MP 实体会因两端 pymatgen 版本不同而解不开，故用结构 JSON。
 
 ## 常见陷阱（必须披露）
 
@@ -73,15 +74,19 @@ python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --
   generate → screen（`e_above_hull` + 去重 + 新颖性，96 个 MP 参考相含 Li/P/S 端点）→ score（项目一
   CatBoost 桥接，跨项目 `src` 包冲突已隔离处理）→ rank + 2 图，全程跑通。
   *注：`lj` 能量无物理意义、`mp-demo` 替身非生成输出，故 `novel=False` 全中（替身本就是已知相）—— 这恰证明新颖性判定正确。*
-- ✅ **云端真跑完成（NUS Vanda A40，2026-07-01）**：MatterGen 条件生成 Li-P-S（batch 16×4=64）→ Li 过滤
+- ✅ **云端生产运行（NUS Vanda A40，2026-07-01）**：MatterGen 条件生成 Li-P-S（batch 16×4=64）→ Li 过滤
   （剔除 3 个不含锂的 P–S 二元相，留 61）→ MACE-MP-0 自洽凸包筛（96 参考相）→ 项目一 CatBoost 打分 → 排序出图。
   跑法见 `HPC_VANDA.md`（PBS + Singularity，复用项目二 `~/macepkg`，全程免费）。
 - ⬜ W11：把 shortlist 头部喂项目二 MLIP-MD 算真实 σ/Eₐ；画统一 pipeline 流程图。
 
-## 结果（NUS Vanda A40 真跑，2026-07-01）
+## 结果（NUS Vanda A40，2026-07-01）
 
 **61 生成 → 50 稳定 → 54 unique → 61 novel → 43 S.U.N.**（`ehull_cutoff=0.1 eV/atom`；完整表见
-`data/candidates_final.csv`，图见 `figures/01_landscape.png`、`02_shortlist.png`，参数/计数见 `data/p3_runs.json`）。
+`data/candidates_final.csv`，参数/计数见 `data/p3_runs.json`）。
+
+![生成 Li-P-S 候选的稳定性–电导率 landscape 与 S.U.N. shortlist](figures/fig_inverse_design.png)
+
+*出版级 figure（`figures/fig_inverse_design.{svg,pdf,png}`，由 `make_publication_figure.py` 生成）。*
 
 S.U.N. shortlist 头部（全部 Stable+Unique+Novel，按项目一模型预测 log₁₀σ 降序）：
 

@@ -6,7 +6,7 @@ Colab 仅作 stage A 的兜底（见文末）。
 > **状态（按项目记忆）**：项目二的 **MACE baseline 已在 Vanda A40 实跑过**（50ps × 600/800/1000K，
 > σ300≈29.6 mS/cm、Ea≈0.198 eV，过预测实验 ~9.4×=未微调预期内）。所以 stage B（MACE 在 A40 上弛豫、
 > 复用 `~/macepkg`）走的是**已验证路径**。**新的只有 stage A 的 MatterGen**——它在 Vanda 上从未跑过，
-> 是本次首跑的真正检验点（见文末风险）。未被脚本/记忆佐证的具体数字（配额 GB、scratch 路径等）不写死，以 Vanda 实际为准。
+> 是首次在 Vanda 运行时的检验点（见文末风险）。未经脚本佐证的具体数字（配额 GB、scratch 路径等）不写死，以 Vanda 实际为准。
 
 ## 环境事实（已核实）
 
@@ -14,7 +14,7 @@ Colab 仅作 stage A 的兜底（见文末）。
 - 镜像 `pytorch_2.5_cuda_12.4_unsloth.sif`（py3.10 + torch2.5 + **CUDA 12.4**）→ A40 零兼容问题（非 Blackwell，不需 CUDA≥12.8）。
 - MLIP/生成都走 **FP32**；A40 单精度强、FP64 弱（本工作流不碰 FP64）。容器里只有 `python3`（无 `python`）。
 - ⚠️ **torch 的 CUDA build 要 ≤ A40 驱动（12.4）**：12.4 驱动能向后跑任何**更旧**的 toolkit（cu118/cu121/cu124 都行），
-  但跑不动**更新**的（如 `cu130`）——那才会在 A40 上**静默回落 CPU**（项目二记忆里的坑）。MatterGen 钉的是 `torch2.2.1+cu118`，
+  但跑不动**更新**的（如 `cu130`）——那才会在 A40 上**静默回落 CPU**（已知坑）。MatterGen 钉的是 `torch2.2.1+cu118`，
   在 12.4 驱动上没问题；`setup_mattergen.sh` 的断言只拦「比驱动新」或 `cpu` 版，看到 `TORCH_CUDA_OK` 即过。
   **别手动改 venv 里 torch 的 cu 版**——它的编译扩展（`torch_scatter` 等）按 cu118 编译，换了 torch 的 cu 版会找不到 `libcudart` 而崩。stage B 复用 macepkg 的容器 torch，不受影响。
 
@@ -101,13 +101,13 @@ rsync -az vanda:~/AI4SSB/project3_generative/{data,figures}/ ./
 | 环节 | 状态 |
 |---|---|
 | B 阶段（MACE 筛 + 打分 + 排序） | 复用**项目二已在 A40 跑通的** MACE 路径（baseline σ300≈29.6 mS/cm）+ 已装 macepkg；本机 CPU 管路也验过 → 低风险 |
-| A 阶段（MatterGen 装 + 跑） | 命令按官方 README 核准；但**项目二未用过 MatterGen**，Vanda 首跑要确认三点（见下） |
+| A 阶段（MatterGen 装 + 跑） | 命令按官方 README 核准；MatterGen 为本项目新引入，首次在 Vanda 运行要确认三点（见下） |
 
-**A 阶段首跑要盯三点**：
+**A 阶段首次运行要盯三点**：
 1. **权重路径**：`setup_mattergen.sh` 用 `snapshot_download(microsoft/mattergen, checkpoints/chemical_system/*)`
    预下到 `~/hf_cache`，PBS 把同一 `HF_HOME` 传进容器。若上游改了 checkpoint 路径，报错就在这一行；改 `allow_patterns` 即可。
 2. **uv 建 venv 要联网**：必须在**登录节点**跑 `setup_mattergen.sh`（计算节点离线）；venv 与权重都落在 `$HOME`，计算节点能直接用。
-3. **venv torch 的 CUDA build ≤ 12.4**（项目二记忆里的坑）：`setup_mattergen.sh` 的断言拦「比驱动新」(`cu130`) 或 `cpu` 版
+3. **venv torch 的 CUDA build ≤ 12.4**（已知坑）：`setup_mattergen.sh` 的断言拦「比驱动新」(`cu130`) 或 `cpu` 版
    （会在 A40 上静默回落 CPU）；MatterGen 的 `cu118` 在 12.4 驱动上 OK。看到 `TORCH_CUDA_OK` 才算过。
    ⚠️ 别手动改 venv 里 torch 的 cu 版——`torch_scatter` 等扩展按 cu118 编译，换了会崩（`libcudart.so.11.0` 找不到）。
 
