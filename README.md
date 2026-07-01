@@ -24,7 +24,7 @@
 | `src/novelty.py` | StructureMatcher 候选间去重（Unique）+ 与 MP 已知相比对（Novel） | CPU |
 | `src/score.py` + `03_score_conductivity.py` | **跨项目复用项目一模型**（导入其 `featurize`/`predict` + `catboost_model.cbm`）给候选打 log₁₀σ 先验 | CPU |
 | `04_rank_candidates.py` | 合并 screen+score → `candidates_final.csv` + `p3_runs.json` + 两张快查图 | CPU |
-| `figures/make_publication_figure.py` | 由 `candidates_final.csv` 出**出版级合成 figure**（landscape + shortlist 双 panel，矢量 SVG/PDF/PNG） | CPU |
+| `figures/make_publication_figure.py` | 由 `candidates_final.csv` 出**出版级合成 figure**（landscape + shortlist 双 panel，矢量 SVG） | CPU |
 | `notebooks/01_mattergen_pipeline.ipynb` | 云端编排：阶段 A（隔离 py3.10 venv 跑 MatterGen）→ 阶段 B（MACE 筛 + 打分） | Colab T4 / Vanda |
 
 ```bash
@@ -84,9 +84,9 @@ python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --
 **61 生成 → 50 稳定 → 54 unique → 61 novel → 43 S.U.N.**（`ehull_cutoff=0.1 eV/atom`；完整表见
 `data/candidates_final.csv`，参数/计数见 `data/p3_runs.json`）。
 
-![生成 Li-P-S 候选的稳定性–电导率 landscape 与 S.U.N. shortlist](figures/fig_inverse_design.png)
+![生成 Li-P-S 候选的稳定性–电导率 landscape 与 S.U.N. shortlist](figures/fig_inverse_design.svg)
 
-*出版级 figure（`figures/fig_inverse_design.{svg,pdf,png}`，由 `make_publication_figure.py` 生成）。*
+*出版级 figure（`figures/fig_inverse_design.svg`，矢量可编辑，由 `make_publication_figure.py` 生成）。*
 
 S.U.N. shortlist 头部（全部 Stable+Unique+Novel，按项目一模型预测 log₁₀σ 降序）：
 

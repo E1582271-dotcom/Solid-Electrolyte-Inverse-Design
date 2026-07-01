@@ -1,7 +1,7 @@
 """
 Publication-grade composite figure for the Project 3 inverse-design demo.
 
-Two panels (Nature double-column, ~180 mm, editable SVG/PDF/TIFF):
+Two panels (Nature double-column, ~180 mm, editable SVG):
   a  Stability-conductivity landscape: E_above_hull vs predicted log10 sigma for every
      screened candidate, coloured by S.U.N. status; stability cutoff + the screened-out
      unstable candidates shown as a bottom rug -> the generate->screen funnel geometry.
@@ -141,11 +141,9 @@ def main():
     axb.text(1.0, 1.02, "top-8 S.U.N.", transform=axb.transAxes, fontsize=6,
              color="#5A5A5A", ha="right", va="bottom")
 
-    for ext, dpi in [("svg", None), ("pdf", None), ("tiff", 600), ("png", 300)]:
-        kw = {"dpi": dpi} if dpi else {}
-        fig.savefig(f"{OUT}.{ext}", bbox_inches="tight", **kw)
+    fig.savefig(f"{OUT}.svg", bbox_inches="tight")   # vector, editable text
     plt.close(fig)
-    print("wrote", OUT + ".{svg,pdf,tiff,png}")
+    print("wrote", OUT + ".svg")
 
 
 if __name__ == "__main__":
