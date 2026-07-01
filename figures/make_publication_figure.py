@@ -73,45 +73,48 @@ def main():
 
     # ================= Panel a: stability-conductivity landscape (hero) =================
     ax = fig.add_subplot(gs[0, 0])
-    y0 = scored["pred_log10_sigma"].min() - 0.35
+    y0 = scored["pred_log10_sigma"].min() - 0.30
     y1 = scored["pred_log10_sigma"].max() + 0.25
-    xlo, xhi = -0.05, 0.355
+    # cap the x-axis just past the cutoff so the scored candidates are not squished into the
+    # left third; the 11 unstable ones (E_hull up to ~0.34) sit off-panel and are counted.
+    xlo, xhi = -0.05, 0.15
     ax.set_xlim(xlo, xhi)
 
     # faint "kept (stable)" region left of the cutoff
     ax.axvspan(xlo, cut, color=C_TARGET, alpha=0.05, lw=0, zorder=0)
     ax.axvline(cut, color=C_CUT, ls="--", lw=0.9, zorder=1)
-    ax.text(cut + 0.006, y1 - 0.14, "stability cutoff\n0.1 eV atom$^{-1}$",
-            color=C_CUT, fontsize=6, va="top", ha="left", linespacing=1.1)
+    ax.text(cut + 0.004, y1 - 0.10, "stability\ncutoff 0.1", color=C_CUT, fontsize=6,
+            va="top", ha="left", linespacing=1.1)
 
-    ax.scatter(stab["e_above_hull"], stab["pred_log10_sigma"], s=22, c=C_STABLE,
-               edgecolors="white", linewidths=0.4, zorder=3,
-               label=f"stable, not S.U.N. ({len(stab)})")
-    ax.scatter(sun["e_above_hull"], sun["pred_log10_sigma"], s=26, c=C_SUN,
-               edgecolors="white", linewidths=0.4, zorder=4,
+    # S.U.N. filled; stable-not-S.U.N. as open diamonds ON TOP so the 7 stay visible
+    ax.scatter(sun["e_above_hull"], sun["pred_log10_sigma"], s=17, c=C_SUN,
+               alpha=0.88, edgecolors="white", linewidths=0.3, zorder=3,
                label=f"S.U.N. ({len(sun)})")
+    ax.scatter(stab["e_above_hull"], stab["pred_log10_sigma"], s=24, marker="D",
+               facecolors="none", edgecolors="#3F5E86", linewidths=0.9, zorder=4,
+               label=f"stable, not S.U.N. ({len(stab)})")
 
-    # screened-out unstable candidates as a grey rug at the axis floor
-    ax.scatter(unstable["e_above_hull"], np.full(len(unstable), y0 + 0.06),
-               marker="|", s=90, c=C_UNSTABLE, linewidths=0.8, zorder=2)
-    ax.text(unstable["e_above_hull"].median(), y0 + 0.16,
-            f"unstable, screened out ({len(unstable)})",
-            color="#8A8A8A", fontsize=6, ha="center", va="bottom")
+    ax.text(cut + 0.004, y0 + 0.28, f"{len(unstable)} unstable →\nscreened out",
+            color="#8A8A8A", fontsize=6, ha="left", va="bottom", linespacing=1.2)
 
     # annotate the hero candidate only (LiPS3 below-hull is shown in panel b)
     r0 = sun[(sun["formula"] == "Li3PS4") & (np.isclose(sun["e_above_hull"], 0.006, atol=1e-3))]
     if len(r0):
         x0, yv0 = r0["e_above_hull"].iloc[0], r0["pred_log10_sigma"].iloc[0]
+        # highlight ring: a stable-not-S.U.N. Li3PS4 polymorph sits at nearly the same point,
+        # so ring the S.U.N. hero to make the callout unambiguous.
+        ax.scatter([x0], [yv0], s=44, facecolors=C_SUN, edgecolors="#E0A100",
+                   linewidths=1.3, zorder=6)
         ax.annotate(fml("Li3PS4") + " novel β-polymorph", xy=(x0, yv0),
                     xytext=(-0.045, y1 - 0.10), fontsize=6, ha="left", va="center",
                     color="#272727",
                     arrowprops=dict(arrowstyle="-", lw=0.6, color="#5A5A5A",
-                                    shrinkA=0, shrinkB=2))
+                                    shrinkA=0, shrinkB=4))
 
     ax.set_ylim(y0, y1)
     ax.set_xlabel("Energy above hull, $E_{\\mathrm{hull}}$ (eV atom$^{-1}$)")
     ax.set_ylabel("Predicted log$_{10}\\,\\sigma$ (S cm$^{-1}$)")
-    ax.legend(loc="center right", fontsize=6, handletextpad=0.3, borderpad=0.3,
+    ax.legend(loc="lower left", fontsize=6, handletextpad=0.3, borderpad=0.3,
               labelspacing=0.4)
     ax.text(0.0, 1.02, "a", transform=ax.transAxes, fontsize=9, fontweight="bold",
             ha="left", va="bottom")
