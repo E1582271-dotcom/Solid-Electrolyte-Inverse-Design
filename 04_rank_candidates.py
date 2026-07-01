@@ -79,7 +79,7 @@ def main():
     ax.set_ylabel("predicted log10 ionic conductivity (S/cm)")
     ax.set_title("Generated Li-P-S candidates: stability vs conductivity")
     ax.legend(fontsize=7, loc="best")
-    fig.tight_layout(); fig.savefig(os.path.join(FIG, "01_landscape.png"), dpi=150)
+    fig.tight_layout(); fig.savefig(os.path.join(FIG, "01_landscape.png"), dpi=600)
     plt.close(fig)
 
     # --- figure 2: final S.U.N. shortlist ---
@@ -97,7 +97,7 @@ def main():
                             for r in sun.itertuples()])
         ax.set_xlabel("predicted log10 ionic conductivity (S/cm)")
         ax.set_title(f"Final shortlist{fallback}")
-        fig.tight_layout(); fig.savefig(os.path.join(FIG, "02_shortlist.png"), dpi=150)
+        fig.tight_layout(); fig.savefig(os.path.join(FIG, "02_shortlist.png"), dpi=600)
         plt.close(fig)
 
     # --- print ---

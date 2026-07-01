@@ -86,7 +86,7 @@ python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --
 
 ![生成 Li-P-S 候选的稳定性–电导率 landscape 与 S.U.N. shortlist](figures/fig_inverse_design.svg)
 
-*出版级 figure（`figures/fig_inverse_design.svg`，矢量可编辑，由 `make_publication_figure.py` 生成）。*
+*出版级 figure（`figures/fig_inverse_design.svg` 矢量母版 + `.png` 600 dpi 位图，由 `make_publication_figure.py` 生成）。*
 
 S.U.N. shortlist 头部（全部 Stable+Unique+Novel，按项目一模型预测 log₁₀σ 降序）：
 

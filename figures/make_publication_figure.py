@@ -144,9 +144,10 @@ def main():
     axb.text(1.0, 1.02, "top-8 S.U.N.", transform=axb.transAxes, fontsize=6,
              color="#5A5A5A", ha="right", va="bottom")
 
-    fig.savefig(f"{OUT}.svg", bbox_inches="tight")   # vector, editable text
+    fig.savefig(f"{OUT}.svg", bbox_inches="tight")             # vector master (editable text)
+    fig.savefig(f"{OUT}.png", bbox_inches="tight", dpi=600)    # 600-dpi raster
     plt.close(fig)
-    print("wrote", OUT + ".svg")
+    print("wrote", OUT + ".{svg,png}  (png @ 600 dpi)")
 
 
 if __name__ == "__main__":
