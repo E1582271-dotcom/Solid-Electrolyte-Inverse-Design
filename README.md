@@ -1,4 +1,4 @@
-# Project 3 (bonus) — Generative Inverse Design: generate → screen → score
+# Project 3 — Generative Inverse Design: generate → screen → score
 
 **What this is.** A concept-validation bonus that demonstrates the inverse-design paradigm and
 wires up a full `generate → screen → validate` loop. **Synthesizability is explicitly not
