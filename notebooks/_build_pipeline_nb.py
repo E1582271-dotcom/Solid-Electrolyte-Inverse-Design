@@ -2,7 +2,7 @@
 
 Colab-first orchestration of Project 3's inverse-design demo. Two stages:
   A) MatterGen conditional generation in an isolated uv/py3.10 env (CLI subprocess);
-  B) stability screen (MACE hull) + project-1 conductivity score in the kernel env.
+  B) stability screen (MACE hull) + vendored Project-1 conductivity score in the kernel env.
 Re-run this script to regenerate the notebook after editing the cell sources below.
 """
 import json
@@ -13,100 +13,86 @@ code = lambda s: {"cell_type": "code", "metadata": {}, "execution_count": None,
                   "outputs": [], "source": s.strip("\n").splitlines(keepends=True)}
 
 cells = [
-md("""# 03 inverse design — MatterGen → MLIP 稳定性筛 → 项目一电导率打分 (W10, 彩蛋)
+md("""# Inverse design — MatterGen → MLIP stability screen → conductivity score (Project 3, bonus)
 
-**定位：概念验证（concept-validation）**，展示 inverse-design 范式 + 串起 *generate → screen → validate* 闭环。
-**不主张可合成性** —— MatterGen 原论文仅做一例合成验证，这里把它当主菜反而信号弱。
+**Concept validation**: demonstrates the inverse-design paradigm and a *generate → screen → validate*
+loop. **No synthesizability is claimed** — MatterGen's own paper validated a single synthesis.
 
-串联叙事中的位置：项目一(筛选) → **项目三(生成新候选)** → 项目二(高精度 MLIP-MD 验证) → 未来电化学实验闭环。
+Position in the portfolio: Project 1 (screening) → **Project 3 (generate new candidates)** →
+Project 2 (high-accuracy MLIP-MD validation) → future electrochemical experiment.
 
 ---
-**两阶段**（MatterGen 需独立 Python 3.10 环境，与筛选环境隔离）：
-- **A 生成**：在 uv 建的 py3.10 venv 里跑官方 `mattergen-generate` CLI（条件 = 化学体系 Li-P-S）→ `generated_crystals_cif.zip`。
-- **B 筛选+打分**：回到 kernel 环境，用 MACE-MP-0 自洽凸包算 `e_above_hull` 筛稳定 → 项目一 CatBoost 模型给电导率打分 → 排序出图。
+**Two stages** (MatterGen needs an isolated Python 3.10 environment, kept apart from the screen):
+- **A — generate**: in a uv-built py3.10 venv, run the official `mattergen-generate` CLI (condition =
+  chemical system Li-P-S) → `generated_crystals_cif.zip`.
+- **B — screen + score**: back in the kernel, use a MACE-MP-0 self-consistent hull to compute
+  `e_above_hull` and keep stable candidates → score with the vendored Project-1 CatBoost model → rank.
 
-> **Vanda OnDemand 备选**（用户首选 HPC）：阶段 A 在 Vanda 容器里用 `PYTHONUSERBASE=~/mgenpkg` + `pip install --user mattergen` 装，CLI 同样可跑；阶段 B 复用已验证的 `~/macepkg` MACE 装法。命令同此 notebook，只是把 `!`-shell 换成容器内执行。"""),
+> **Vanda HPC alternative** (the preferred path): run stage A in the Vanda container with an isolated
+> venv and stage B by reusing the installed `~/macepkg`. See `HPC_VANDA.md` — same commands, just run
+> inside the container instead of via `!`-shell."""),
 
-md("""## 0) 环境 + 取代码
+md("""## 0) Environment + get the code
 
-项目三的打分步骤 (`src/score.py`) 会向上找 `../project1_screening/`（复用项目一训练好的 `catboost_model.cbm`），
-所以 **project1_screening 与 project3_generative 必须并排放在同一父目录**（即本机 `~/Code/AI4SSB/` 的布局）。
+This repo is **self-contained** (the Project-1 conductivity model is vendored under `vendor/`), so
+cloning it alone is enough — no need for the Project 1 repo alongside."""),
 
-下面两选一：A) 填 `REPO_URL` git clone（若已把 AI4SSB 推成一个 repo）；B) 否则上传 `ai4ssb.zip`
-（内含 `project1_screening/` + `project3_generative/` 两个文件夹）自动解压。"""),
-
-code("""# GPU 自检
+code("""# GPU check
 import torch, sys
 print("python", sys.version.split()[0], "| torch", torch.__version__, "| CUDA", torch.cuda.is_available())
-print("device:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU only (生成会很慢)")"""),
+print("device:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU only (generation will be slow)")"""),
 
-code("""# 取代码：A) git clone  或  B) 上传 ai4ssb.zip（含 project1_screening + project3_generative）
-import os, glob, zipfile, subprocess
-REPO_URL = ""   # 例: https://github.com/<user>/AI4SSB.git ；留空则走上传 zip 分支
-ROOT = "/content/AI4SSB"
+code("""# Get the code: clone this (public, self-contained) repo.
+import os, subprocess
+REPO_URL = "https://github.com/E1582271-dotcom/Solid-Electrolyte-Inverse-Design.git"
+ROOT = "/content/project3"
+if not os.path.isdir(ROOT):
+    subprocess.run(["git", "clone", REPO_URL, ROOT], check=True)
+assert os.path.isfile(os.path.join(ROOT, "vendor", "catboost_model.cbm")), \\
+    "vendored conductivity model missing -- clone the full repo"
+os.chdir(ROOT)
+print("working dir:", os.getcwd())"""),
 
-if REPO_URL:
-    if not os.path.isdir(ROOT):
-        subprocess.run(["git", "clone", REPO_URL, ROOT], check=True)
-else:
-    if not os.path.isdir(ROOT):
-        from google.colab import files          # 上传含两个 project 文件夹的 zip
-        up = files.upload()
-        zname = next(k for k in up if k.endswith(".zip"))
-        os.makedirs(ROOT, exist_ok=True)
-        with zipfile.ZipFile(zname) as zf:
-            zf.extractall(ROOT)
-        # 若 zip 里多包了一层（AI4SSB/AI4SSB/...）则下探一层
-        if not os.path.isdir(os.path.join(ROOT, "project3_generative")):
-            inner = [d for d in glob.glob(os.path.join(ROOT, "*")) if os.path.isdir(d)]
-            if len(inner) == 1:
-                ROOT = inner[0]
-
-P3 = os.path.join(ROOT, "project3_generative")
-assert os.path.isfile(os.path.join(ROOT, "project1_screening", "catboost_model.cbm")), \
-    "找不到项目一模型 catboost_model.cbm —— 请确保 project1_screening 与 project3_generative 并排"
-os.chdir(P3)
-print("工作目录:", os.getcwd())"""),
-
-code("""# 清场：删掉 zip 里可能带上来的本机运行产物，避免 stale 缓存/CSV 污染本次运行。
-# 关键是 hull_energy_cache*.json（本机是 LJ 能量，会被当 MACE 能量复用 -> 凸包系统性偏差）。
-# 保留 data/ref_entries.pkl —— MP 参考结构与 calculator 无关，复用可省掉 MP_API_KEY。
+code("""# Clean any committed run products so this notebook produces its own. Keep the portable
+# reference cache data/ref_structures.json (calculator-independent, avoids needing an MP API key).
 import os, glob, shutil
 for pat in ["data/generated/*", "data/relaxed/*", "data/mattergen_run/*",
-            "data/screened.csv", "data/scored.csv", "data/candidates_final.csv",
-            "data/hull_energy_cache*.json", "figures/0*.png"]:
+            "data/screened.csv", "data/scored.csv", "data/candidates_final.csv", "data/p3_runs.json",
+            "data/hull_energy_cache*.json", "figures/0*.png", "figures/fig_inverse_design.*"]:
     for p in glob.glob(pat):
         shutil.rmtree(p, ignore_errors=True) if os.path.isdir(p) else os.remove(p)
-print("已清理 stale 运行产物（保留 ref_entries.pkl 供离线建凸包）")"""),
+print("cleaned committed run products (kept ref_structures.json for the offline hull)")"""),
 
-code("""# MP_API_KEY（阶段 B 拉参考相建凸包用）—— 存 Colab Secret 名为 MP_API_KEY
+code("""# MP_API_KEY -- OPTIONAL. The shipped data/ref_structures.json already provides the 96 reference
+# phases, so the hull builds offline. Only set this if you delete that cache and want to re-fetch.
 import os
 try:
     from google.colab import userdata
     os.environ["MP_API_KEY"] = userdata.get("MP_API_KEY")
-    print("MP_API_KEY 已从 Colab Secret 载入")
+    print("MP_API_KEY loaded from Colab Secret")
 except Exception as e:
-    print("未取到 Secret（可改用 project1_screening/mp_api_key.txt）:", e)"""),
+    print("no MP_API_KEY secret (fine -- ref_structures.json is shipped):", e)"""),
 
-md("""## A) 生成 —— MatterGen 条件生成 Li-P-S 候选
+md("""## A) Generate — MatterGen conditional generation of Li-P-S candidates
 
-在隔离的 uv/py3.10 venv 里装 MatterGen 并跑 CLI（避免与 kernel 的 torch/e3nn 冲突）。
-**安装/调用命令以 [microsoft/mattergen](https://github.com/microsoft/mattergen) 官方 README 为准**（版本会变）。
-`chemical_system` 预训练权重在 HuggingFace，首次自动下载。"""),
+Install MatterGen in an isolated uv/py3.10 venv and run its CLI (to avoid clashing with the kernel's
+torch/e3nn). **Follow the official [microsoft/mattergen](https://github.com/microsoft/mattergen)
+README for the install/CLI (versions change).** The `chemical_system` pretrained weights are on
+HuggingFace and download automatically on first use."""),
 
-code("""# A1) 隔离环境装 MatterGen（git clone + uv，py3.10）。首次约 5–10 分钟。
+code("""# A1) Install MatterGen in an isolated env (git clone + uv, py3.10). ~5-10 min the first time.
 import os, subprocess
 MG = "/content/mattergen"
 if not os.path.isdir(MG):
     subprocess.run(["git", "clone", "https://github.com/microsoft/mattergen.git", MG], check=True)
 subprocess.run(["pip", "install", "-q", "uv"], check=True)
-# 在 mattergen 目录建 py3.10 venv 并可编辑安装；后续直接调 .venv/bin 里的可执行文件
+# build a py3.10 venv in the mattergen dir + editable install; then call the venv's executables
 subprocess.run(["uv", "venv", ".venv", "--python", "3.10"], cwd=MG, check=True)
 subprocess.run(["uv", "pip", "install", "-e", ".", "--python", ".venv/bin/python"], cwd=MG, check=True)
-print("MatterGen 环境就绪:", MG)"""),
+print("MatterGen environment ready:", MG)"""),
 
-code("""# A2) 条件生成：以化学体系 Li-P-S 为条件采样候选结构
-#    薄跑：batch_size=16, num_batches=2（共 ~32 个）。要更多就加 num_batches。
+code("""# A2) Conditional generation: sample candidates conditioned on the chemical system Li-P-S.
+#     Thin run: batch_size=16, num_batches=2 (~32 total). Raise num_batches for more.
 import os, shutil, subprocess
 MG = "/content/mattergen"
 RESULTS = os.path.join(MG, "results", "chemical_system")
@@ -118,7 +104,7 @@ cmd = [".venv/bin/mattergen-generate", RESULTS,
 print("$", " ".join(cmd))
 subprocess.run(cmd, cwd=MG, check=True)
 
-# 把 MatterGen 输出搬到项目三 data/ 下，供 from-results 读取
+# copy the MatterGen output into the project's data/ for the from-results reader
 import os
 DST = os.path.join(os.getcwd(), "data", "mattergen_run")
 os.makedirs(DST, exist_ok=True)
@@ -126,42 +112,53 @@ for fn in ("generated_crystals_cif.zip", "generated_crystals.extxyz"):
     src = os.path.join(RESULTS, fn)
     if os.path.exists(src):
         shutil.copy(src, DST)
-print("已复制 MatterGen 输出到", DST, "->", os.listdir(DST))"""),
+print("copied MatterGen output to", DST, "->", os.listdir(DST))"""),
 
-code("""# A3) 归一化为统一 manifest + 单结构 CIF（纯 pymatgen，跑在 kernel 里）
+code("""# A3) Normalise to a single manifest + per-structure CIFs (pure pymatgen, runs in the kernel)
 !python 01_generate.py --source from-results --results-path data/mattergen_run"""),
 
-md("""## B) 筛选 + 打分 —— MACE 自洽凸包稳定性筛 + 项目一电导率打分
+md("""## B) Screen + score — MACE self-consistent hull + conductivity score
 
-- **稳定性**：参考相和候选都用**同一** MACE-MP-0 弛豫，凸包由这些 MLIP 能量自洽建立（避免把 MLIP 候选能量与 PBE+U 参考能量混用而系统性偏差；见 `src/stability.py`）。参考相能量按 material_id 缓存，重跑很快。
-- **S.U.N.**：Stable（`e_above_hull` ≤ cutoff）+ Unique（候选间去重）+ Novel（不匹配任何 MP 已知相）—— MatterGen 自身报告的标准透镜。
-- **打分**：复用项目一 OBELiX-CatBoost 模型给存活候选一个**粗电导率先验（排序用，非定量 σ）**。"""),
+- **Stability**: reference phases and candidates are relaxed with the **same** MACE-MP-0, and the
+  hull is built self-consistently from those MLIP energies (avoids the bias from mixing MLIP
+  candidate energies with PBE+U reference energies; see `src/stability.py`). Reference energies are
+  cached by material_id, so re-runs are fast.
+- **S.U.N.**: Stable (`e_above_hull` ≤ cutoff) + Unique (de-dup among candidates) + Novel (no match to
+  any known MP phase) — the standard lens MatterGen reports.
+- **Score**: the vendored Project-1 OBELiX-CatBoost model gives survivors a **coarse conductivity
+  prior (for ranking, not a quantitative σ)**."""),
 
-code("""# B1) 装筛选/打分重包到 kernel（MACE + pymatgen 栈）。约 2–4 分钟。
-!pip install -q mace-torch chgnet pymatgen pymatgen-analysis-diffusion mp-api catboost"""),
+code("""# B1) Install the screen/score deps into the kernel (MACE + pymatgen stack). ~2-4 min.
+!pip install -q mace-torch pymatgen mp-api catboost"""),
 
-code("""# B2) 稳定性筛：MACE 自洽凸包 → e_above_hull + 去重 + 新颖性
-#     首次会下载 MACE-MP-0 权重；参考相弛豫能量缓存到 data/hull_energy_cache.json
+code("""# B2) Stability screen: MACE self-consistent hull -> e_above_hull + de-dup + novelty.
+#     Downloads MACE-MP-0 weights on first use; reference energies cache to data/hull_energy_cache_mace.json
 !python 02_screen_stability.py --calc mace --ehull-cutoff 0.1 --fmax 0.05 --steps 200"""),
 
-code("""# B3) 用项目一模型给存活候选打电导率先验分（只打稳定的）
+code("""# B3) Score the survivors with the vendored Project-1 model (stable ones only)
 !python 03_score_conductivity.py --stable-only"""),
 
-code("""# B4) 合并 + 排序 + 出图（landscape + 最终 shortlist）
+code("""# B4) Merge + rank + plot (landscape + final shortlist)
 !python 04_rank_candidates.py --top 5"""),
 
-code("""# B5) 展示结果图
+code("""# B5) Show the result figures
 from IPython.display import Image, display
 for f in ["figures/01_landscape.png", "figures/02_shortlist.png"]:
     print(f); display(Image(f))"""),
 
-md("""## 跑通之后 / 诚实披露（写进 README + 技术报告）
+md("""## After it runs / honest disclosure
 
-- **生成结构大多不稳定/不可合成** → 必须过 MLIP 稳定性筛；这是 demo 的核心信号点。
-- **e_above_hull 来自 universal MLIP**（未针对硫化物微调），是相对稳定性指标，非 DFT 级定量；自洽凸包消除了参考态不一致，但 MLIP 本身的偏差仍在。
-- **电导率分是粗排序先验**（项目一模型），生成的新化学计量比 `Family='unknown'`、对称性常为 P1，分数只用于排序、交给项目二 MD 验证。
-- **彩蛋定位**：申请材料里**不过度承诺**，明确写「概念验证 + 闭环演示」。
-- **下一步**：把 S.U.N. shortlist 的头部喂给项目二 MLIP-MD 算真实 σ/Eₐ；W11 画统一 pipeline 流程图。"""),
+- **Most generated structures are unstable / unsynthesizable** → they must pass the MLIP stability
+  screen; that is the demo's core signal.
+- **e_above_hull comes from a universal MLIP** (not fine-tuned for sulfides): a relative-stability
+  indicator, not DFT-quantitative. The self-consistent hull removes the reference-state mismatch, but
+  the MLIP's own bias remains.
+- **The conductivity score is a coarse ranking prior** (Project-1 model); generated stoichiometries
+  score with `Family='unknown'` and are often P1-symmetry — the score is for ranking and handoff to
+  Project 2 MD only.
+- **Positioning**: concept validation + closed-loop demo, with no over-promise on synthesizability.
+- **Next**: hand the S.U.N. shortlist head to Project 2 MLIP-MD for a real σ/Eₐ; draw the unified
+  pipeline diagram (W11)."""),
 ]
 
 nb = {
