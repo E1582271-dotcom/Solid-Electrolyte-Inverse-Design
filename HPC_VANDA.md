@@ -105,8 +105,10 @@ rsync -az vanda:~/AI4SSB/project3_generative/{data,figures}/ ./
 
 - `data/candidates_final.csv` — every candidate, ranked by predicted log₁₀σ, with e_above_hull /
   S.U.N. flags.
-- `figures/01_landscape.png` — stability vs conductivity landscape.
-- `figures/02_shortlist.png` — the final S.U.N. shortlist.
+- `figures/01_landscape.png` / `figures/02_shortlist.png` — raw diagnostic figures from
+  `04_rank_candidates.py` (regenerated on every run; not tracked). The tracked deliverable is
+  `figures/fig_inverse_design.{png,svg}`, consolidated from both by
+  `figures/make_publication_figure.py`.
 
 Hand the shortlist head to Project 2 MLIP-MD for a real σ/Eₐ (W11), then backfill the README results
 table.

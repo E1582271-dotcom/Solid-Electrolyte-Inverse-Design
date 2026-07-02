@@ -19,7 +19,8 @@
   },
   "outputs": [
     "data/candidates_final.csv",
-    "figures/01_landscape.png",
-    "figures/02_shortlist.png"
-  ]
+    "figures/fig_inverse_design.png",
+    "figures/fig_inverse_design.svg"
+  ],
+  "outputs_note": "01_landscape.png / 02_shortlist.png were the raw figures written by 04_rank_candidates.py during this run; they were later consolidated into figures/fig_inverse_design.* by figures/make_publication_figure.py and dropped from the repo (commit 6e2d42f)."
 }
