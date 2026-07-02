@@ -34,10 +34,8 @@ mpl.rcParams.update({
     "pdf.fonttype": 42,       # editable TrueType in PDF
     "font.size": 7,
     "axes.linewidth": 0.6,
-    "axes.spines.right": True,   # full 4-sided box (matches projects 1/2)
-    "axes.spines.top": True,
-    "xtick.top": True,           # mirrored ticks on the closed box
-    "ytick.right": True,
+    "axes.spines.right": True,   # full 4-sided box (matches projects 1/2);
+    "axes.spines.top": True,     # ticks stay on bottom/left only
     "xtick.major.width": 0.6,
     "ytick.major.width": 0.6,
     "xtick.major.size": 2.5,
