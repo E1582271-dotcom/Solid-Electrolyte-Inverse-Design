@@ -14,42 +14,22 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(HERE)
+sys.path.insert(0, REPO_ROOT)
+from src import plotstyle as ps  # noqa: E402
+from src.plotstyle import C_SUN, C_STABLE, C_UNSTABLE, C_CUT, C_TARGET  # noqa: E402
+
 DATA = os.path.join(HERE, "..", "data", "candidates_final.csv")
 OUT = os.path.join(HERE, "fig_inverse_design")
-
-# ---- Nature-style rcParams: editable text, thin spines, 7 pt base ----------------------
-mpl.rcParams.update({
-    "font.family": "sans-serif",
-    "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
-    "svg.fonttype": "none",   # keep text as <text> nodes (editable in Illustrator/Inkscape)
-    "pdf.fonttype": 42,       # editable TrueType in PDF
-    "font.size": 7,
-    "axes.linewidth": 0.6,
-    "axes.spines.right": True,   # full 4-sided box (matches projects 1/2);
-    "axes.spines.top": True,     # ticks stay on bottom/left only
-    "xtick.major.width": 0.6,
-    "ytick.major.width": 0.6,
-    "xtick.major.size": 2.5,
-    "ytick.major.size": 2.5,
-    "legend.frameon": False,
-})
-
-# Restrained palette: one blue signal family (two shades) + neutral grey; red reserved
-# for the reference cutoff line only.
-C_SUN = "#0F4D92"      # stable + unique + novel  (the hero signal)
-C_STABLE = "#8FB2D6"   # stable but not S.U.N.    (lighter blue)
-C_UNSTABLE = "#BEBEBE"  # screened out             (neutral grey)
-C_CUT = "#B64342"      # stability cutoff          (reference cue)
-C_TARGET = "#0F4D92"   # faint "kept" region shade
 
 
 def fml(s: str) -> str:
@@ -58,6 +38,7 @@ def fml(s: str) -> str:
 
 
 def main():
+    ps.apply_publication_style()
     d = pd.read_csv(DATA)
     cut = 0.1
     d["cat"] = np.where(d["SUN"], "sun",
@@ -116,8 +97,7 @@ def main():
     ax.set_ylabel("Predicted log$_{10}\\,\\sigma$ (S cm$^{-1}$)")
     ax.legend(loc="lower left", fontsize=6, handletextpad=0.3, borderpad=0.3,
               labelspacing=0.4)
-    ax.text(0.0, 1.02, "a", transform=ax.transAxes, fontsize=9, fontweight="bold",
-            ha="left", va="bottom")
+    ps.add_panel_label(ax, "a", x=0.0, y=1.02, fontsize=9)
     # funnel summary
     ax.text(0.5, 1.02, "64 generated → 61 Li-bearing → 50 stable → 43 S.U.N.",
             transform=ax.transAxes, fontsize=6, color="#5A5A5A", ha="center", va="bottom")
@@ -139,10 +119,17 @@ def main():
     axb.set_yticklabels(labels, fontsize=6, linespacing=1.15)
     axb.set_xlabel("Predicted log$_{10}\\,\\sigma$ (S cm$^{-1}$)")
     axb.tick_params(axis="y", length=0)
-    axb.text(0.0, 1.02, "b", transform=axb.transAxes, fontsize=9, fontweight="bold",
-             ha="left", va="bottom")
+    ps.add_panel_label(axb, "b", x=0.0, y=1.02, fontsize=9)
     axb.text(1.0, 1.02, "top-8 S.U.N.", transform=axb.transAxes, fontsize=6,
              color="#5A5A5A", ha="right", va="bottom")
+
+    # source data: all scored candidates (panel a) + shortlist_rank marking panel b's top-8
+    shortlist_rank = {label: i + 1 for i, label in enumerate(top.sort_values(
+        "pred_log10_sigma", ascending=False)["label"])}
+    src_rows = [[r.label, r.formula, r.e_above_hull, r.pred_log10_sigma, r.cat,
+                shortlist_rank.get(r.label, "")] for r in scored.itertuples()]
+    ps.save_source_data(f"{OUT}.png", ["label", "formula", "e_above_hull",
+                                       "pred_log10_sigma", "category", "shortlist_rank"], src_rows)
 
     fig.savefig(f"{OUT}.svg", bbox_inches="tight")             # vector master (editable text)
     fig.savefig(f"{OUT}.png", bbox_inches="tight", dpi=600)    # 600-dpi raster
