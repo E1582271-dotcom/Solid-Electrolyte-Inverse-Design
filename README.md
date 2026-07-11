@@ -8,6 +8,15 @@ Position in the portfolio's screening funnel:
 Project 1 (screening) → **Project 3 (generate new candidates)** → Project 2 (high-accuracy
 MLIP-MD validation) → future electrochemical experiment.
 
+## Headline
+- **A full generate → screen → score loop runs end-to-end.** MatterGen (conditioned on Li-P-S)
+  → self-consistent MLIP convex hull + S.U.N. novelty → Project-1 CatBoost conductivity prior:
+  **64 generated → 61 Li-bearing → 50 stable → 43 S.U.N.**
+- **Two leads handed to Project 2 MD** — Li₃PS₄ (gen_016, e_above_hull 0.006, a novel β-polymorph
+  essentially on the hull) and LiPS₃ (gen_021, e_above_hull −0.031, an MLIP-predicted new ground state).
+- **The handoff produced the portfolio's rank-reversal headline**: LiPS₃, scored *last* of the four
+  by the cheap prior, was MD-validated in Project 2 as a strong conductor (~10 mS/cm).
+
 ## Where this fits in the portfolio
 
 ![Unified screening → generation → MLIP-MD validation pipeline](https://raw.githubusercontent.com/E1582271-dotcom/Solid-Electrolyte-MLIP-MD/main/figures/08_pipeline_overview.png)
@@ -59,12 +68,12 @@ pip install -r requirements.txt
 python 01_generate.py --source mp-demo --max-demo 6 --rattle 0.1
 python 02_screen_stability.py --calc lj --steps 3 --no-relax-cell
 python 03_score_conductivity.py
-python 04_rank_candidates.py --top 5
+python 04_rank_candidates.py --top 8
 
 # cloud (GPU production) -- see notebooks/01_mattergen_pipeline.ipynb
 python 01_generate.py --source mattergen --chemsys Li-P-S --batch-size 16 --num-batches 4
 python 02_screen_stability.py --calc mace --ehull-cutoff 0.1
-python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --top 5
+python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --top 8
 ```
 
 > **Self-contained scoring.** The Project-1 conductivity model is **vendored** under `vendor/`
@@ -129,9 +138,11 @@ python 03_score_conductivity.py --stable-only && python 04_rank_candidates.py --
 
 ## Results (NUS Vanda A40, 2026-07-01)
 
-**61 generated → 50 stable → 54 unique → 61 novel → 43 S.U.N.** (`ehull_cutoff=0.1 eV/atom`; full
-table in `data/candidates_final.csv`, parameters/counts in `data/p3_runs.json`). Figures for both
-the generation funnel and this stability-conductivity landscape are shown inline above, in
+**64 generated → 61 Li-bearing → 50 stable → 43 S.U.N.** (`ehull_cutoff=0.1 eV/atom`). Uniqueness
+and novelty are independent flags over the 61-candidate pool (54/61 unique; **61/61 novel** — every
+survivor is a new polymorph vs the known MP phases), so the 43 S.U.N. is the stable ∧ unique ∧ novel
+intersection; full table in `data/candidates_final.csv`, counts in `data/p3_runs.json`. Figures for
+both the generation funnel and this stability-conductivity landscape are shown inline above, in
 [MVP](#mvp) steps 1 and 4 respectively.
 
 S.U.N. shortlist head (all Stable + Unique + Novel, ranked by the Project-1 model's predicted log₁₀σ):
@@ -143,6 +154,7 @@ S.U.N. shortlist head (all Stable + Unique + Novel, ranked by the Project-1 mode
 | LiP5S4  |  0.080 | −6.89 | |
 | Li3PS4  |  0.036 | −6.93 | another novel Li3PS4 polymorph |
 | Li4PS5  |  0.080 | −6.94 | argyrodite-adjacent stoichiometry |
+| LiP4S5  |  0.070 | −7.03 | |
 | LiPS3   | −0.031 | −7.12 | `e_above_hull < 0` → an MLIP-predicted **new ground state** |
 | Li8PS2  |  0.019 | −7.12 | |
 

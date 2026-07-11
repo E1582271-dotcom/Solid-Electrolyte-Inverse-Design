@@ -6,7 +6,7 @@
     "num_batches": 4,
     "guidance": 2.0,
     "ehull_cutoff": 0.1,
-    "top": 5
+    "top": 8
   },
   "counts": {
     "n_generated": 61,
