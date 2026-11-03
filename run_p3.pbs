@@ -5,7 +5,7 @@
 #   B) MACE self-consistent hull + vendored Project 1 score (~/macepkg + ~/p3pkg) -> S.U.N. shortlist
 # Personal free budget -> no -P. Analogue of project 2's run_md.pbs.
 #
-# One-time prereqs on the LOGIN node (see HPC_VANDA.md):
+# One-time prereqs on the LOGIN node (see docs/hpc_vanda.md):
 #   singularity exec $IMG bash setup_mattergen.sh   # builds ~/mattergen/.venv + checkpoint
 #   singularity exec $IMG bash setup_screen.sh       # adds catboost/matminer/scikit-learn to ~/p3pkg + MACE weights
 # Project 3 is self-contained: the Project 1 ensemble is vendored in vendor/ (no project1 checkout needed).

@@ -2,8 +2,9 @@
 
 A **vendored, checksum-verified copy** of Project 1's production conductivity ranker
 ([Solid-Electrolyte-Screening](https://github.com/E1582271-dotcom/Solid-Electrolyte-Screening),
-`project1_screening/`), so this repo clones and scores candidates on its own. `src/score.py`
-always loads this copy; it never reads a sibling Project 1 checkout.
+formerly `project1_screening/`), so this repo clones and scores candidates on its own.
+`src/score.py` always loads this copy; it never reads a sibling Project 1 checkout. Only
+`refresh_from_p1.py` and one optional test read a sibling checkout, at `../Solid-Electrolyte-Screening/`.
 
 ## Source
 
@@ -23,7 +24,8 @@ refuses on any mismatch.
 
 - `p1_models/*.cbm` — the 15 CatBoost members (`compact` 400 trees/depth 5, `base` 600/6,
   `deep_slow` 800/7; seeds 0–4 each), trained by Project 1 on **all 599 OBELiX records**
-  (target log₁₀ σ / S cm⁻¹). Verbatim copies of `project1_screening/artifacts/models/`.
+  (target log₁₀ σ / S cm⁻¹). Verbatim copies of `artifacts/models/` in
+  Solid-Electrolyte-Screening (formerly `project1_screening`) at the commit above.
 - `p1_manifest.json` — provenance, per-member sha256/bytes/config/seed, the 134-feature contract
   (132 matminer Magpie statistics + `n_elements` + `Li_frac`), applicability-domain settings and
   Project 1's frozen route thresholds.

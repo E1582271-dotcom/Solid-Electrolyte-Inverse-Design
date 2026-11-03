@@ -1,6 +1,6 @@
 # Project 3 -- screening + scoring + figure environment (Python 3.10-3.12).
 # Stage A (MatterGen generation) is a SEPARATE Python 3.10 environment; install it via
-# MatterGen's own instructions (see HPC_VANDA.md / notebooks/01_mattergen_pipeline.ipynb),
+# MatterGen's own instructions (see docs/hpc_vanda.md / notebooks/01_mattergen_pipeline.ipynb),
 # NOT from this file.
 
 numpy

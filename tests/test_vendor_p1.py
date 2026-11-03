@@ -18,7 +18,8 @@ from src import score as SC  # noqa: E402
 VENDOR = ROOT / "vendor"
 P1 = ROOT.parent / "Solid-Electrolyte-Screening"
 
-# Frozen from project1_screening/candidate_queue.csv (P1 commit 099731e, models de72aa9):
+# Frozen from Solid-Electrolyte-Screening (formerly project1_screening) candidate_queue.csv
+# (P1 commit 099731e, models de72aa9):
 # formula, ranking_score, ensemble_spread, ad_distance, evidence_state == "extrapolative"
 P1_QUEUE_SUBSET = [
     ("Li20Si3P3S23Cl", -2.2616938324596543, 0.1161909853777895, 4.717161061048966, False),

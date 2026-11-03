@@ -30,7 +30,7 @@ Project 1's trained conductivity ensemble as an off-the-shelf scorer before Proj
   `e_above_hull` and keep stable candidates → score with the vendored Project-1 CatBoost ensemble → rank.
 
 > **Vanda HPC alternative** (the preferred path): run stage A in the Vanda container with an isolated
-> venv and stage B by reusing the installed `~/macepkg`. See `HPC_VANDA.md` — same commands, just run
+> venv and stage B by reusing the installed `~/macepkg`. See `docs/hpc_vanda.md` — same commands, just run
 > inside the container instead of via `!`-shell."""),
 
 md("""## 0) Environment + get the code

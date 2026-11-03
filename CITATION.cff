@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this data or code, please cite it as below."
+title: "Generative inverse design of Li-P-S solid-electrolyte candidates with MatterGen and a self-consistent MACE-MP-0 stability screen"
+authors:
+  - family-names: Jia
+    given-names: Jieao
+license: MIT
+repository-code: "https://github.com/E1582271-dotcom/Solid-Electrolyte-Inverse-Design"
+keywords:
+  - solid-state electrolyte
+  - inverse design
+  - generative model
+  - MatterGen
+  - machine-learning interatomic potential
+  - MACE-MP-0
+  - convex hull

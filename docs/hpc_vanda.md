@@ -1,7 +1,8 @@
 # Running Project 3 on NUS Vanda (A40) — the main path
 
-**Vanda HPC is Project 3's main path** (same machinery as Project 2: PBS + Singularity +
-user-site package isolation). Colab is only a fallback for stage A (see the end).
+**Vanda HPC is Project 3's main path** (same machinery as Project 2,
+[Solid-Electrolyte-MLIP-MD](https://github.com/E1582271-dotcom/Solid-Electrolyte-MLIP-MD): PBS +
+Singularity + user-site package isolation). Colab is only a fallback for stage A (see the end).
 
 > **Context.** Project 2's **MACE baseline has already run on Vanda A40** (50 ps × 600/800/1000 K,
 > σ₃₀₀ ≈ 29.6 mS/cm, Ea ≈ 0.198 eV — ~9.4× over experiment, as expected for an un-fine-tuned
@@ -39,6 +40,9 @@ only need this project on Vanda:
 ```
 ~/AI4SSB/project3_generative/     # this project (includes vendor/ + data/ref_structures.json)
 ```
+
+The checkout on the cluster keeps the repository's old directory name, `project3_generative`, so
+every cluster path in this file and in the job scripts uses it.
 
 Bring `data/ref_structures.json` along → the hull uses the 96 cached MP reference phases directly,
 so **no MP_API_KEY is needed** (it is a portable structure cache, readable across pymatgen versions;
@@ -112,7 +116,7 @@ rsync -az vanda:~/AI4SSB/project3_generative/{data,figures}/ ./
 
 Next: send the S.U.N. set (43 structures on the 2026-07-01 run) through Project 2's census +
 replicate protocol for a real σ/Eₐ (not yet run; the July 2026 W11 pilot ran only gen016 and gen021,
-single seed), then backfill the README results table. The conductivity prior describes the
+single seed), then add the results to [results.md](results.md). The conductivity prior describes the
 candidates but is not used to cut the list.
 
 ## Risks & fallback

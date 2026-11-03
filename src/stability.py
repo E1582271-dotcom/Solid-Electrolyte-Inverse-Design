@@ -5,7 +5,7 @@ The crux of an inverse-design demo is the *filter*: most generated crystals are
 unstable, so we relax each one with a universal MLIP and compute its energy above the
 convex hull (e_above_hull), keeping only near-stable candidates.
 
-Design decision -- a SELF-CONSISTENT MLIP hull (documented in the README):
+Design decision -- a SELF-CONSISTENT MLIP hull (documented in docs/methods.md):
     Both the reference phases (pulled from Materials Project for the chemical system)
     AND the generated candidates are relaxed with the *same* universal MLIP, and the
     hull is built from those MLIP energies. This avoids mixing MLIP candidate energies
