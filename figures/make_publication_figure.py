@@ -3,15 +3,20 @@ Publication-grade composite figure for the Project 3 inverse-design demo.
 
 Two panels (Nature double-column, ~180 mm, editable SVG):
   a  Stability-conductivity landscape: E_above_hull vs predicted log10 sigma for every
-     screened candidate, coloured by S.U.N. status; stability cutoff + the screened-out
-     unstable candidates shown as a bottom rug -> the generate->screen funnel geometry.
-  b  Final S.U.N. shortlist ranked by the project-1 conductivity prior.
+     scored (stable) candidate, coloured by S.U.N. status; stability cutoff marked, and the
+     screened-out unstable candidates (not scored) counted off-panel -> the generate->screen
+     funnel geometry.
+  b  Top 8 S.U.N. structures by sun_rank from 04, ranked by the Project 1 conductivity prior:
+     bars = 15-member ensemble mean, whiskers = ensemble SD. Descriptive only -- the prior is
+     not used to select candidates; all S.U.N. structures go to the Project 2 census.
 
-Reads data/candidates_final.csv. Backend: matplotlib only. Run:
+Reads data/candidates_final.csv + data/p3_runs.json (stability cutoff applied by 02 and the
+funnel counts; nothing is hard-coded). Backend: matplotlib only. Run:
     python figures/make_publication_figure.py
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -29,7 +34,9 @@ from src import plotstyle as ps  # noqa: E402
 from src.plotstyle import C_SUN, C_STABLE, C_UNSTABLE, C_CUT, C_TARGET  # noqa: E402
 
 DATA = os.path.join(HERE, "..", "data", "candidates_final.csv")
+RUNS = os.path.join(HERE, "..", "data", "p3_runs.json")
 OUT = os.path.join(HERE, "fig_inverse_design")
+N_SHORTLIST = 8
 
 
 def fml(s: str) -> str:
@@ -37,10 +44,25 @@ def fml(s: str) -> str:
     return "$\\mathrm{" + re.sub(r"(\d+)", r"_{\1}", str(s)) + "}$"
 
 
+def load_run(d: pd.DataFrame) -> tuple[dict, float]:
+    """Funnel counts + stability cutoff from data/p3_runs.json, cross-checked against the table."""
+    with open(RUNS) as f:
+        run = json.load(f)
+    counts, cut = run["counts"], float(run["params"]["ehull_cutoff"])
+    for key, value in {"n_li_bearing": len(d), "n_stable": int(d["stable"].sum()),
+                       "n_sun": int(d["SUN"].sum()),
+                       "n_scored": int(d["pred_log10_sigma"].notna().sum())}.items():
+        if int(counts[key]) != value:
+            raise SystemExit(f"p3_runs.json {key}={counts[key]} but candidates_final.csv has {value}")
+    if not (d["stable"] == (d["e_above_hull"] <= cut)).all():
+        raise SystemExit(f"stable flags disagree with p3_runs.json ehull_cutoff={cut}")
+    return counts, cut
+
+
 def main():
     ps.apply_publication_style()
     d = pd.read_csv(DATA)
-    cut = 0.1
+    counts, cut = load_run(d)
     d["cat"] = np.where(d["SUN"], "sun",
                         np.where(d["stable"], "stable", "unstable"))
     scored = d[d["pred_log10_sigma"].notna()]
@@ -64,7 +86,7 @@ def main():
     # faint "kept (stable)" region left of the cutoff
     ax.axvspan(xlo, cut, color=C_TARGET, alpha=0.05, lw=0, zorder=0)
     ax.axvline(cut, color=C_CUT, ls="--", lw=0.9, zorder=1)
-    ax.text(cut + 0.004, y1 - 0.10, "stability\ncutoff 0.1", color=C_CUT, fontsize=6,
+    ax.text(cut + 0.004, y1 - 0.10, f"stability\ncutoff {cut:g}", color=C_CUT, fontsize=6,
             va="top", ha="left", linespacing=1.1)
 
     # S.U.N. filled; stable-not-S.U.N. as open diamonds ON TOP so the 7 stay visible
@@ -87,7 +109,7 @@ def main():
         ax.scatter([x0], [yv0], s=44, facecolors=C_SUN, edgecolors="#E0A100",
                    linewidths=1.3, zorder=6)
         ax.annotate(fml("Li3PS4") + " novel β-polymorph", xy=(x0, yv0),
-                    xytext=(-0.045, y1 - 0.10), fontsize=6, ha="left", va="center",
+                    xytext=(-0.045, yv0 + 0.22 * (y1 - y0)), fontsize=6, ha="left", va="center",
                     color="#272727",
                     arrowprops=dict(arrowstyle="-", lw=0.6, color="#5A5A5A",
                                     shrinkA=0, shrinkB=4))
@@ -95,22 +117,28 @@ def main():
     ax.set_ylim(y0, y1)
     ax.set_xlabel("Energy above hull, $E_{\\mathrm{hull}}$ (eV atom$^{-1}$)")
     ax.set_ylabel("Predicted log$_{10}\\,\\sigma$ (S cm$^{-1}$)")
-    ax.legend(loc="lower left", fontsize=6, handletextpad=0.3, borderpad=0.3,
+    # upper-left corner is empty (low-E_hull candidates do not reach the top scores)
+    ax.legend(loc="upper left", fontsize=6, handletextpad=0.3, borderpad=0.3,
               labelspacing=0.4)
     ps.add_panel_label(ax, "a", x=0.0, y=1.02, fontsize=9)
     # funnel summary
-    ax.text(0.5, 1.02, "64 generated → 61 Li-bearing → 50 stable → 43 S.U.N.",
+    ax.text(0.5, 1.02, f"{counts['n_generated']} generated → {counts['n_li_bearing']} Li-bearing → "
+            f"{counts['n_stable']} stable → {counts['n_sun']} S.U.N.",
             transform=ax.transAxes, fontsize=6, color="#5A5A5A", ha="center", va="bottom")
 
     # ================= Panel b: S.U.N. shortlist ranked by predicted sigma =================
     axb = fig.add_subplot(gs[0, 1])
-    top = sun.sort_values("pred_log10_sigma", ascending=False).head(8).iloc[::-1]
+    # 04 ranks by ensemble mean with ties broken by e_above_hull, then label (sun_rank)
+    top = sun[sun["sun_rank"] <= N_SHORTLIST].sort_values("sun_rank").iloc[::-1]
     ypos = np.arange(len(top))
-    base = top["pred_log10_sigma"].min() - 0.45
+    err = top["pred_log10_sigma_spread"].values
+    base = (top["pred_log10_sigma"].values - err).min() - 0.45
     widths = top["pred_log10_sigma"].values - base
     axb.barh(ypos, widths, left=base, height=0.66, color=C_SUN,
              edgecolor="white", linewidth=0.4, zorder=3)
-    axb.set_xlim(base, top["pred_log10_sigma"].max() + 0.06)
+    axb.errorbar(top["pred_log10_sigma"].values, ypos, xerr=err, fmt="none",
+                 ecolor="#272727", elinewidth=0.6, capsize=1.6, capthick=0.6, zorder=4)
+    axb.set_xlim(base, (top["pred_log10_sigma"].values + err).max() + 0.08)
     axb.set_ylim(-0.6, len(top) - 0.4)
 
     labels = [f"{fml(r.formula)}\n$E_{{\\mathrm{{hull}}}}$ {r.e_above_hull:.3f}"
@@ -120,16 +148,17 @@ def main():
     axb.set_xlabel("Predicted log$_{10}\\,\\sigma$ (S cm$^{-1}$)")
     axb.tick_params(axis="y", length=0)
     ps.add_panel_label(axb, "b", x=0.0, y=1.02, fontsize=9)
-    axb.text(1.0, 1.02, "top-8 S.U.N.", transform=axb.transAxes, fontsize=6,
-             color="#5A5A5A", ha="right", va="bottom")
+    axb.text(1.0, 1.02, f"top-{N_SHORTLIST} S.U.N. (± ensemble SD)", transform=axb.transAxes,
+             fontsize=6, color="#5A5A5A", ha="right", va="bottom")
 
     # source data: all scored candidates (panel a) + shortlist_rank marking panel b's top-8
-    shortlist_rank = {label: i + 1 for i, label in enumerate(top.sort_values(
-        "pred_log10_sigma", ascending=False)["label"])}
-    src_rows = [[r.label, r.formula, r.e_above_hull, r.pred_log10_sigma, r.cat,
-                shortlist_rank.get(r.label, "")] for r in scored.itertuples()]
-    ps.save_source_data(f"{OUT}.png", ["label", "formula", "e_above_hull",
-                                       "pred_log10_sigma", "category", "shortlist_rank"], src_rows)
+    shortlist_rank = {r.label: int(r.sun_rank) for r in top.itertuples()}
+    src_rows = [[r.label, r.formula, r.e_above_hull, r.pred_log10_sigma,
+                 r.pred_log10_sigma_spread, r.cat, shortlist_rank.get(r.label, "")]
+                for r in scored.itertuples()]
+    ps.save_source_data(f"{OUT}.png", ["label", "formula", "e_above_hull", "pred_log10_sigma",
+                                       "pred_log10_sigma_spread", "category", "shortlist_rank"],
+                        src_rows)
 
     fig.savefig(f"{OUT}.svg", bbox_inches="tight")             # vector master (editable text)
     fig.savefig(f"{OUT}.png", bbox_inches="tight", dpi=600)    # 600-dpi raster

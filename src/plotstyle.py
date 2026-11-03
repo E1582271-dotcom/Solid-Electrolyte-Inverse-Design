@@ -15,9 +15,13 @@ AI4SSB SHARED PLOTSTYLE -- CORE (byte-identical across all 4 portfolio repos)
 Canonical source: project2_mlip_md/src/plotstyle.py
 This file is a physical copy (not an import -- each repo must stay independently
 cloneable/runnable). CORE_VERSION = "1.0.1"   Last synced: 2026-07-13
-Everything from here down to "END CORE" must stay byte-identical across all
-four copies. If you change any of it, edit the canonical source first, then
-bump CORE_VERSION + the sync date in all four repos in the same sitting.
+The CODE from the `__future__` import down to the "END CORE" ruler must stay
+byte-identical across all four copies: project2_mlip_md (canonical),
+project3_generative (this file), project4_interface and project5_md_benchmark.
+This header prose is not part of that guarantee; project1_screening has no
+plotstyle.py. If you change any CORE code, edit the canonical source first,
+then copy it to all four repos and bump CORE_VERSION + the sync date in the
+same sitting.
 =============================================================================
 """
 from __future__ import annotations
@@ -133,8 +137,8 @@ def save_source_data(fig_path: str, columns, rows, subdir: str = "source_data"):
 
 # =============================================================================
 # END CORE -- everything below is this repo's own semantic palette layer.
-# Free to diverge from project1_screening / project2_mlip_md /
-# project4_interface; does not need to match the other three repos.
+# Free to diverge from project2_mlip_md / project4_interface /
+# project5_md_benchmark; does not need to match the other three copies.
 # =============================================================================
 
 # ── Project 3 semantic palette: generate -> screen -> S.U.N. status ──────────

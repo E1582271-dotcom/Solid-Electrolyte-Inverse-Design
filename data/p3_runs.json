@@ -1,5 +1,5 @@
 {
-  "timestamp_utc": "2026-06-30T19:15:02+00:00",
+  "timestamp_utc": "2026-10-19T08:02:49+00:00",
   "params": {
     "chemsys": "Li-P-S",
     "batch_size": 16,
@@ -9,7 +9,8 @@
     "top": 8
   },
   "counts": {
-    "n_generated": 61,
+    "n_generated": 64,
+    "n_li_bearing": 61,
     "n_screened": 61,
     "n_stable": 50,
     "n_unique": 54,
@@ -17,10 +18,60 @@
     "n_sun": 43,
     "n_scored": 50
   },
+  "count_sources": {
+    "n_generated": "batch_size x num_batches (MatterGen emits batch_size structures per batch; generation_summary.json absent)",
+    "n_li_bearing": "rows of data/screened.csv (02 screens every post-filter candidate)",
+    "ehull_cutoff": "ehull_cutoff column of data/screened.csv (written by 02)"
+  },
+  "scorer": {
+    "model": "Project 1 production CatBoost ensemble (formula-only M0, vendored)",
+    "n_members": 15,
+    "n_features": 134,
+    "training_records": 599,
+    "p1_project_version": "0.1.0",
+    "p1_git_head": "099731e0d00d836fed263b5f020d7c433adce338",
+    "p1_models_commit": "de72aa90bd8ad070a761e0d1a55f285e34a96b5d",
+    "manifest_sha256": "a9531028ea472714e9b437c0788ee80773f74e22c6f47641cccab8962b3ff3c8",
+    "score": "ensemble mean of log10(sigma / S cm^-1)",
+    "spread": "ensemble standard deviation (ddof=0)",
+    "route_thresholds": {
+      "ad": 12.1476855543917,
+      "score": -5.809792231278942,
+      "spread": 0.38462639856654013
+    }
+  },
+  "ranking": "pred_log10_sigma (ensemble mean) desc; ties by e_above_hull asc, then label",
   "outputs": [
     "data/candidates_final.csv",
-    "figures/fig_inverse_design.png",
-    "figures/fig_inverse_design.svg"
+    "figures/01_landscape.png",
+    "figures/02_shortlist.png"
   ],
-  "outputs_note": "01_landscape.png / 02_shortlist.png were the raw figures written by 04_rank_candidates.py during this run; they were later consolidated into figures/fig_inverse_design.* by figures/make_publication_figure.py and dropped from the repo (commit 6e2d42f)."
+  "previous_runs": [
+    {
+      "timestamp_utc": "2026-06-30T19:15:02+00:00",
+      "params": {
+        "chemsys": "Li-P-S",
+        "batch_size": 16,
+        "num_batches": 4,
+        "guidance": 2.0,
+        "ehull_cutoff": 0.1,
+        "top": 8
+      },
+      "counts": {
+        "n_generated": 61,
+        "n_screened": 61,
+        "n_stable": 50,
+        "n_unique": 54,
+        "n_novel": 61,
+        "n_sun": 43,
+        "n_scored": 50
+      },
+      "outputs": [
+        "data/candidates_final.csv",
+        "figures/fig_inverse_design.png",
+        "figures/fig_inverse_design.svg"
+      ],
+      "outputs_note": "01_landscape.png / 02_shortlist.png were the raw figures written by 04_rank_candidates.py during this run; they were later consolidated into figures/fig_inverse_design.* by figures/make_publication_figure.py and dropped from the repo (commit 6e2d42f)."
+    }
+  ]
 }

@@ -12,7 +12,8 @@ Calculators:
     --calc lj      Lennard-Jones -- CPU PLUMBING ONLY (meaningless energies), to verify
                    the relax->hull->e_above_hull->novelty wiring end-to-end on a laptop.
 
-Output: data/screened.csv + relaxed CIFs in data/relaxed/.
+Output: data/screened.csv (incl. the ehull_cutoff used, which step 4 reads back) + relaxed CIFs
+in data/relaxed/.
 
 Run:
     ~/Code/AI4SSB/.venv/bin/python 02_screen_stability.py --calc lj --max-refs 6 --steps 3 --no-relax-cell   # laptop plumbing
@@ -35,7 +36,7 @@ from src import novelty as NV
 DATA = os.path.join(HERE, "data")
 GEN_DIR = os.path.join(DATA, "generated")
 RELAX_DIR = os.path.join(DATA, "relaxed")
-REF_CACHE = os.path.join(DATA, "ref_structures.json")   # portable structure cache (see stability.py)
+REF_CACHE = os.path.join(DATA, "ref_structures.json")   # portable Li-P-S structure cache (see stability.py)
 # NB: the hull energy cache is per-calculator (built in main() from args.calc) so an LJ
 # plumbing cache can never feed a MACE hull -- mixing reference states would silently
 # bias e_above_hull, the very thing the self-consistent hull exists to prevent.
@@ -53,6 +54,9 @@ def main():
     ap.add_argument("--max-refs", type=int, default=None, help="cap reference phases (plumbing)")
     ap.add_argument("--max-cands", type=int, default=None, help="cap candidates (plumbing)")
     ap.add_argument("--device", default=None)
+    ap.add_argument("--ref-cache", default=REF_CACHE,
+                    help="reference-structure cache for this --chemsys (refused if it holds a "
+                         "different chemical system; default data/ref_structures.json = Li-P-S)")
     args = ap.parse_args()
 
     os.makedirs(RELAX_DIR, exist_ok=True)
@@ -77,7 +81,7 @@ def main():
     import json
     energy_cache_path = os.path.join(DATA, f"hull_energy_cache_{args.calc}.json")
     energy_cache = json.load(open(energy_cache_path)) if os.path.exists(energy_cache_path) else {}
-    refs = ST.fetch_reference_entries(chemsys, cache_path=REF_CACHE)
+    refs = ST.fetch_reference_entries(chemsys, cache_path=args.ref_cache)
     print(f"[screen] {len(refs)} MP reference phases for {args.chemsys}; building MLIP hull ...")
     hull = ST.build_mlip_hull(refs, calc, energy_cache=energy_cache,
                               fmax=args.fmax, steps=args.steps, max_refs=args.max_refs)
@@ -103,15 +107,17 @@ def main():
         rp = os.path.join(RELAX_DIR, f"relaxed_{lab}.cif")
         r["relaxed"].to(filename=rp)
 
-    # uniqueness among candidates
-    reps, groups = NV.dedupe(relaxed)
-    rep_set = set(reps)
-    for i, row in enumerate(rows):
-        row["unique"] = i in rep_set
-
     df = pd.DataFrame(rows)
     df["stable"] = df["e_above_hull"] <= args.ehull_cutoff
+
+    # uniqueness among candidates: visit stable candidates first (input order otherwise) so each
+    # duplicate group is represented by a stable member whenever it has one -- otherwise an
+    # earlier unstable twin would make a stable structure "non-unique" and drop it from S.U.N.
+    reps, groups = NV.dedupe(relaxed, order=NV.stable_first_order(df["stable"].tolist()))
+    rep_set = set(reps)
+    df["unique"] = [i in rep_set for i in range(len(df))]
     df["SUN"] = df["stable"] & df["unique"] & df["novel"]
+    df["ehull_cutoff"] = args.ehull_cutoff      # recorded so step 4 + figures use 02's cutoff
     out = os.path.join(DATA, "screened.csv")
     df.to_csv(out, index=False)
 

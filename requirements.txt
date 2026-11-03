@@ -9,7 +9,10 @@ matplotlib
 pymatgen
 ase
 mace-torch          # MACE-MP-0 universal MLIP for the stability screen (GPU recommended)
-catboost            # runs the vendored Project-1 conductivity model (vendor/)
+catboost            # runs the vendored Project 1 conductivity ensemble (vendor/)
+matminer            # Magpie composition descriptors for that ensemble
+scikit-learn        # Project 1 applicability-domain distance (PCA + nearest neighbours)
+pytest              # tests/
 
 # optional -- only to REGENERATE data/ref_structures.json from Materials Project.
 # A portable copy is already shipped, so offline runs do not need this.

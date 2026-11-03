@@ -1,7 +1,7 @@
 """
 Project 3 -- step 1: generate candidate Li-P-S structures.
 
-Three sources (analogous to project 1's --demo and project 2's LJ check):
+Three sources (the offline mp-demo fixture is analogous to project 2's LJ plumbing check):
 
   --source mattergen     Run MatterGen's official CLI conditioned on the chemical system.
                          Needs the mattergen package + a GPU; only works where mattergen
@@ -19,7 +19,9 @@ Three sources (analogous to project 1's --demo and project 2's LJ check):
                          CPU. NOT generative output -- a deliberate plumbing fixture (with
                          --rattle they are displaced to mimic raw, unrelaxed output).
 
-Output: data/generated/gen_*.cif + data/generated/manifest.csv (label, formula, n_atoms, source).
+Output: data/generated/gen_*.cif + data/generated/manifest.csv (label, formula, n_atoms, source;
+post element filter) + data/generated/generation_summary.json (n_generated BEFORE the element
+filter, n_kept after it, dropped formulas) -- step 4 reads both for the funnel counts.
 
 Run:
     ~/Code/AI4SSB/.venv/bin/python 01_generate.py --source mp-demo --max-demo 6 --rattle 0.1
@@ -29,8 +31,10 @@ Run:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -63,7 +67,8 @@ def main():
 
     os.makedirs(GEN_DIR, exist_ok=True)
     for f in os.listdir(GEN_DIR):                # clear stale candidates from prior runs
-        if (f.startswith("gen_") and f.endswith(".cif")) or f == "manifest.csv":
+        if (f.startswith("gen_") and f.endswith(".cif")) or f in ("manifest.csv",
+                                                                 "generation_summary.json"):
             os.remove(os.path.join(GEN_DIR, f))
 
     if args.source == "mattergen":
@@ -93,11 +98,13 @@ def main():
     # elements (default Li). MatterGen conditioned on chemical_system=Li-P-S also emits Li-free
     # P-S binaries, which the project-1 model would otherwise rank as "conductors".
     req = [e.strip() for e in args.require_elements.split(",") if e.strip()]
+    n_generated = len(structures)
+    dropped = []
     if req:
-        before = len(structures)
-        structures = [s for s in structures
-                      if set(req) <= {str(el) for el in s.composition.elements}]
-        print(f"[generate] require-elements {req}: kept {len(structures)}/{before} "
+        keep = [set(req) <= {str(el) for el in s.composition.elements} for s in structures]
+        dropped = [s.composition.reduced_formula for s, k in zip(structures, keep) if not k]
+        structures = [s for s, k in zip(structures, keep) if k]
+        print(f"[generate] require-elements {req}: kept {len(structures)}/{n_generated} "
               f"candidates (dropped ones missing {req}).")
 
     labels = [f"gen_{i:03d}" for i in range(len(structures))]
@@ -111,6 +118,19 @@ def main():
     })
     mpath = os.path.join(GEN_DIR, "manifest.csv")
     manifest.to_csv(mpath, index=False)
+    summary = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "source": source, "chemsys": args.chemsys,
+        "batch_size": args.batch_size if args.source == "mattergen" else None,
+        "num_batches": args.num_batches if args.source == "mattergen" else None,
+        "guidance": args.guidance if args.source == "mattergen" else None,
+        "n_generated": n_generated,                  # raw count, before the element filter
+        "require_elements": req,
+        "n_kept": len(structures),                   # = rows of manifest.csv
+        "dropped_formulas": dropped,
+    }
+    with open(os.path.join(GEN_DIR, "generation_summary.json"), "w") as f:
+        json.dump(summary, f, indent=2)
     print(manifest.to_string(index=False))
     print(f"\nSaved {len(structures)} CIFs + {os.path.relpath(mpath, HERE)}")
 

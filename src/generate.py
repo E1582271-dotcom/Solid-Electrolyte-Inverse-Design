@@ -122,7 +122,6 @@ def load_structures(in_dir: str, prefix: str = "gen") -> list[Structure]:
 
 def mp_demo_candidates(
     chemsys: list[str] | None = None,
-    api_key: Optional[str] = None,
     max_n: int = 6,
     rattle: float = 0.0,
     seed: int = 0,
@@ -133,15 +132,13 @@ def mp_demo_candidates(
     HONEST: these are real, known phases -- NOT generative output. With ``rattle`` > 0 the
     atoms are randomly displaced (A) so they sit slightly off the hull, mimicking a raw
     generated structure that still needs relaxation. Used only by ``01_generate --source
-    mp-demo``; the real run uses ``run_mattergen_cli``. This mirrors project 1's ``--demo``
-    and project 2's Lennard-Jones plumbing check.
+    mp-demo``; the real run uses ``run_mattergen_cli``. This mirrors project 2's Lennard-Jones
+    plumbing check. Needs the MP_API_KEY environment variable.
     """
     import numpy as np
 
     chemsys = chemsys or ["Li", "P", "S"]
-    key = _find_api_key(api_key)
-    if not key:
-        raise RuntimeError("mp-demo needs an MP API key ($MP_API_KEY or project-1 key file).")
+    key = mp_api_key()
     from mp_api.client import MPRester
 
     with MPRester(key) as mpr:
@@ -178,16 +175,13 @@ def mp_demo_candidates(
     return picked
 
 
-def _find_api_key(explicit: Optional[str] = None) -> Optional[str]:
-    """MP API key from (1) arg, (2) $MP_API_KEY, (3) the shared project-1 key file."""
-    if explicit:
-        return explicit.strip()
-    if os.environ.get("MP_API_KEY"):
-        return os.environ["MP_API_KEY"].strip()
-    here = os.path.dirname(os.path.abspath(__file__))
-    shared = os.path.normpath(
-        os.path.join(here, "..", "..", "project1_screening", "mp_api_key.txt")
-    )
-    if os.path.exists(shared):
-        return open(shared).read().strip()
-    return None
+def mp_api_key() -> str:
+    """Materials Project API key, read ONLY from the MP_API_KEY environment variable."""
+    key = os.environ.get("MP_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError(
+            "MP_API_KEY is not set. Export your Materials Project API key first, e.g. "
+            "`export MP_API_KEY=...` (key files are intentionally not read). It is only needed "
+            "for --source mp-demo or to re-fetch reference phases; the shipped "
+            "data/ref_structures.json covers the Li-P-S hull offline.")
+    return key

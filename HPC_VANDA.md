@@ -29,7 +29,7 @@ Two stages, two package trees (same image, mutually non-clobbering):
 - **A — generate**: MatterGen in an isolated uv venv `~/mattergen/.venv` (its own resolved torch,
   independent of the container's 2.5).
 - **B — screen + score**: **reuse Project 2's already-installed `~/macepkg`** (mace + ase); only add
-  catboost + pymatgen + mp-api into `~/p3pkg`.
+  catboost + matminer + scikit-learn + pymatgen + mp-api into `~/p3pkg`.
 
 ## 0) Prerequisite: get the code onto Vanda
 
@@ -56,11 +56,11 @@ IMG=/app1/common/singularity-img/vanda/pytorch_2.5_cuda_12.4_unsloth.sif
 # Stage A: build the MatterGen venv + pre-download the chemical_system weights into ~/hf_cache
 singularity exec "$IMG" bash ~/AI4SSB/project3_generative/setup_mattergen.sh
 
-# Stage B: add catboost+pymatgen into ~/p3pkg (reusing ~/macepkg) + pre-download MACE-MP-0 weights
+# Stage B: add catboost+matminer+scikit-learn+pymatgen into ~/p3pkg (reusing ~/macepkg) + pre-download MACE-MP-0 weights
 singularity exec "$IMG" bash ~/AI4SSB/project3_generative/setup_screen.sh
 ```
 
-`MATTERGEN_WEIGHTS_OK` and `mace/catboost/pymatgen ok` + `MACE_WEIGHTS_OK` mean it is set up (the
+`MATTERGEN_WEIGHTS_OK` and `mace/catboost/matminer/sklearn/pymatgen ok` + `MACE_WEIGHTS_OK` mean it is set up (the
 latter also confirms the "reuse macepkg + layer p3pkg" assumption holds).
 
 ## 2) Submit the job (compute node, offline)
@@ -110,8 +110,10 @@ rsync -az vanda:~/AI4SSB/project3_generative/{data,figures}/ ./
   `figures/fig_inverse_design.{png,svg}`, consolidated from both by
   `figures/make_publication_figure.py`.
 
-Hand the shortlist head to Project 2 MLIP-MD for a real σ/Eₐ (W11), then backfill the README results
-table.
+Next: send the S.U.N. set (43 structures on the 2026-07-01 run) through Project 2's census +
+replicate protocol for a real σ/Eₐ (not yet run; the July 2026 W11 pilot ran only gen016 and gen021,
+single seed), then backfill the README results table. The conductivity prior describes the
+candidates but is not used to cut the list.
 
 ## Risks & fallback
 

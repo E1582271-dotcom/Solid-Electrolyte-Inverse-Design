@@ -115,9 +115,6 @@ def relax(structure: Structure, calc, fmax: float = 0.05, steps: int = 200,
 # --------------------------------------------------------------------------- #
 # Reference phases from Materials Project (cached)
 # --------------------------------------------------------------------------- #
-def _find_api_key(explicit: Optional[str] = None) -> Optional[str]:
-    from .generate import _find_api_key as f
-    return f(explicit)
 
 
 class _RefEntry:
@@ -134,33 +131,55 @@ class _RefEntry:
         self.entry_id = entry_id
 
 
-def fetch_reference_entries(chemsys: list[str], api_key: Optional[str] = None,
-                            cache_path: Optional[str] = None) -> list:
+def _cache_chemsys(data, cache_path: str) -> tuple[list[dict], set[str]]:
+    """Entries + chemical system of a reference cache. New caches record their chemsys
+    explicitly; legacy caches (a bare list, e.g. the shipped Li-P-S data/ref_structures.json)
+    are attributed the union of their entries' elements."""
+    if isinstance(data, dict):
+        return data["entries"], set(data["chemsys"])
+    if isinstance(data, list):
+        elements = set()
+        for d in data:
+            elements |= {str(el) for el in Structure.from_dict(d["structure"]).composition.elements}
+        return data, elements
+    raise ValueError(f"unrecognised reference cache format: {cache_path}")
+
+
+def fetch_reference_entries(chemsys: list[str], cache_path: Optional[str] = None) -> list:
     """Reference phases spanning ``chemsys`` (e.g. ['Li','P','S']), incl. elemental endpoints,
     as lightweight ``_RefEntry`` objects. Cached to ``cache_path`` as a PORTABLE JSON of
     structures (see ``_RefEntry``) so later/offline runs need no MP access and no pymatgen
-    version match. These supply the structures we relax to build the self-consistent MLIP hull."""
+    version match. These supply the structures we relax to build the self-consistent MLIP hull.
+
+    The cache is tied to one chemical system: a cache built for a different chemsys is refused
+    (a Li-P-S hull silently reused for, say, Li-Si-P-S would mis-place every candidate)."""
     import json
 
+    want = {e.strip() for e in chemsys if e.strip()}
     if cache_path and os.path.exists(cache_path):
         with open(cache_path) as f:
-            data = json.load(f)
-        return [_RefEntry(Structure.from_dict(d["structure"]), d["entry_id"]) for d in data]
-    key = _find_api_key(api_key)
-    if not key:
-        raise RuntimeError("No MP API key for reference phases ($MP_API_KEY or key file).")
+            entries, have = _cache_chemsys(json.load(f), cache_path)
+        if have != want:
+            raise RuntimeError(
+                f"reference cache {cache_path} holds the {'-'.join(sorted(have))} system, but "
+                f"chemsys {'-'.join(sorted(want))} was requested. Pass a chemsys-specific cache "
+                f"path (02_screen_stability.py --ref-cache data/ref_structures_<chemsys>.json) "
+                f"or delete the stale cache to re-fetch from Materials Project.")
+        return [_RefEntry(Structure.from_dict(d["structure"]), d["entry_id"]) for d in entries]
+    from .generate import mp_api_key
     from mp_api.client import MPRester
 
-    with MPRester(key) as mpr:
-        entries = mpr.get_entries_in_chemsys(chemsys, inc_structure=True)
+    with MPRester(mp_api_key()) as mpr:
+        entries = mpr.get_entries_in_chemsys(sorted(want), inc_structure=True)
     refs = [_RefEntry(e.structure,
                       str(getattr(e, "entry_id", None) or e.composition.reduced_formula))
             for e in entries]
     if cache_path:
         os.makedirs(os.path.dirname(os.path.abspath(cache_path)), exist_ok=True)
         with open(cache_path, "w") as f:
-            json.dump([{"entry_id": r.entry_id, "structure": r.structure.as_dict()}
-                       for r in refs], f)
+            json.dump({"chemsys": sorted(want),
+                       "entries": [{"entry_id": r.entry_id, "structure": r.structure.as_dict()}
+                                   for r in refs]}, f)
     return refs
 
 

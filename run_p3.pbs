@@ -2,13 +2,13 @@
 # Project 3 inverse-design pipeline on Vanda (generate -> screen -> score -> rank), one GPU
 # job, two container-exec steps in the SAME image but different package trees:
 #   A) MatterGen (isolated uv venv ~/mattergen/.venv) -> Li-P-S candidates
-#   B) MACE self-consistent hull + project-1 score (~/macepkg + ~/p3pkg) -> S.U.N. shortlist
+#   B) MACE self-consistent hull + vendored Project 1 score (~/macepkg + ~/p3pkg) -> S.U.N. shortlist
 # Personal free budget -> no -P. Analogue of project 2's run_md.pbs.
 #
 # One-time prereqs on the LOGIN node (see HPC_VANDA.md):
 #   singularity exec $IMG bash setup_mattergen.sh   # builds ~/mattergen/.venv + checkpoint
-#   singularity exec $IMG bash setup_screen.sh       # adds catboost to ~/p3pkg + MACE weights
-# Also: ~/AI4SSB/project1_screening must sit beside project3_generative (score reuses its model).
+#   singularity exec $IMG bash setup_screen.sh       # adds catboost/matminer/scikit-learn to ~/p3pkg + MACE weights
+# Project 3 is self-contained: the Project 1 ensemble is vendored in vendor/ (no project1 checkout needed).
 #
 # Submit from ~/AI4SSB/project3_generative:
 #   smoke: qsub -v BATCH=4,NBATCH=1,EHULL=0.1,TOP=5 run_p3.pbs

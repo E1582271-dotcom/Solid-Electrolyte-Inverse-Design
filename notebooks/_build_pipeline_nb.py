@@ -18,15 +18,16 @@ md("""# Inverse design — MatterGen → MLIP stability screen → conductivity 
 **Concept validation**: demonstrates the inverse-design paradigm and a *generate → screen → validate*
 loop. **No synthesizability is claimed** — MatterGen's own paper validated a single synthesis.
 
-Position in the portfolio: Project 1 (screening) → **Project 3 (generate new candidates)** →
-Project 2 (high-accuracy MLIP-MD validation) → future electrochemical experiment.
+Position in the portfolio: **Project 3 is a parallel side-track** that generates candidates outside
+the known Materials Project space; it does not consume Project 1's screening output and only borrows
+Project 1's trained conductivity ensemble as an off-the-shelf scorer before Project 2 MLIP-MD.
 
 ---
 **Two stages** (MatterGen needs an isolated Python 3.10 environment, kept apart from the screen):
 - **A — generate**: in a uv-built py3.10 venv, run the official `mattergen-generate` CLI (condition =
   chemical system Li-P-S) → `generated_crystals_cif.zip`.
 - **B — screen + score**: back in the kernel, use a MACE-MP-0 self-consistent hull to compute
-  `e_above_hull` and keep stable candidates → score with the vendored Project-1 CatBoost model → rank.
+  `e_above_hull` and keep stable candidates → score with the vendored Project-1 CatBoost ensemble → rank.
 
 > **Vanda HPC alternative** (the preferred path): run stage A in the Vanda container with an isolated
 > venv and stage B by reusing the installed `~/macepkg`. See `HPC_VANDA.md` — same commands, just run
@@ -34,7 +35,7 @@ Project 2 (high-accuracy MLIP-MD validation) → future electrochemical experime
 
 md("""## 0) Environment + get the code
 
-This repo is **self-contained** (the Project-1 conductivity model is vendored under `vendor/`), so
+This repo is **self-contained** (the Project-1 conductivity ensemble is vendored under `vendor/`), so
 cloning it alone is enough — no need for the Project 1 repo alongside."""),
 
 code("""# GPU check
@@ -48,8 +49,8 @@ REPO_URL = "https://github.com/E1582271-dotcom/Solid-Electrolyte-Inverse-Design.
 ROOT = "/content/project3"
 if not os.path.isdir(ROOT):
     subprocess.run(["git", "clone", REPO_URL, ROOT], check=True)
-assert os.path.isfile(os.path.join(ROOT, "vendor", "catboost_model.cbm")), \\
-    "vendored conductivity model missing -- clone the full repo"
+assert os.path.isfile(os.path.join(ROOT, "vendor", "p1_manifest.json")), \\
+    "vendored conductivity ensemble missing -- clone the full repo"
 os.chdir(ROOT)
 print("working dir:", os.getcwd())"""),
 
@@ -125,11 +126,12 @@ md("""## B) Screen + score — MACE self-consistent hull + conductivity score
   cached by material_id, so re-runs are fast.
 - **S.U.N.**: Stable (`e_above_hull` ≤ cutoff) + Unique (de-dup among candidates) + Novel (no match to
   any known MP phase) — the standard lens MatterGen reports.
-- **Score**: the vendored Project-1 OBELiX-CatBoost model gives survivors a **coarse conductivity
-  prior (for ranking, not a quantitative σ)**."""),
+- **Score**: the vendored Project-1 ensemble (15 CatBoost members, formula-only Magpie descriptors,
+  trained on all 599 OBELiX records) gives survivors a **coarse conductivity prior (ensemble mean ±
+  spread; for ranking, not a quantitative σ)**."""),
 
 code("""# B1) Install the screen/score deps into the kernel (MACE + pymatgen stack). ~2-4 min.
-!pip install -q mace-torch pymatgen mp-api catboost"""),
+!pip install -q mace-torch pymatgen mp-api catboost matminer scikit-learn"""),
 
 code("""# B2) Stability screen: MACE self-consistent hull -> e_above_hull + de-dup + novelty.
 #     Downloads MACE-MP-0 weights on first use; reference energies cache to data/hull_energy_cache_mace.json
@@ -153,12 +155,12 @@ md("""## After it runs / honest disclosure
 - **e_above_hull comes from a universal MLIP** (not fine-tuned for sulfides): a relative-stability
   indicator, not DFT-quantitative. The self-consistent hull removes the reference-state mismatch, but
   the MLIP's own bias remains.
-- **The conductivity score is a coarse ranking prior** (Project-1 model); generated stoichiometries
-  score with `Family='unknown'` and are often P1-symmetry — the score is for ranking and handoff to
-  Project 2 MD only.
+- **The conductivity score is a coarse ranking prior** (Project-1 ensemble); it is formula-only, so
+  every polymorph of a composition gets the same score — the score describes candidates and is not
+  used to select them for Project 2 MD.
 - **Positioning**: concept validation + closed-loop demo, with no over-promise on synthesizability.
-- **Next**: hand the S.U.N. shortlist head to Project 2 MLIP-MD for a real σ/Eₐ; draw the unified
-  pipeline diagram (W11)."""),
+- **Next**: send all S.U.N. structures through the Project 2 census protocol for a real σ/Eₐ; draw
+  the unified pipeline diagram (W11)."""),
 ]
 
 nb = {

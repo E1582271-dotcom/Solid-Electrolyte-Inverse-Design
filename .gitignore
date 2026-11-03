@@ -28,6 +28,7 @@ checkpoints/
 # python / notebooks / os
 __pycache__/
 *.pyc
+.pytest_cache/
 .venv/
 .ipynb_checkpoints/
 .DS_Store
